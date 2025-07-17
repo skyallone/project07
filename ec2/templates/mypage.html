@@ -1,0 +1,962 @@
+{% extends "base.html" %}
+
+{% block title %}마이페이지 - AI 여행계획{% endblock %}
+
+{% block content %}
+<style>
+    /* 탭 스타일 */
+    .tab-link {
+        transition: all 0.3s ease;
+        border-left: 3px solid transparent;
+        cursor: pointer;
+    }
+
+    .tab-link.active {
+        background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+        border-left-color: #007bff;
+        font-weight: 600;
+    }
+
+    .tab-link:hover {
+        background: #f8f9fa;
+        transform: translateX(5px);
+    }
+
+    /* 즐겨찾기 카드 스타일 */
+    .favorite-route-card {
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .favorite-route-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        transition: left 0.5s;
+    }
+
+    .favorite-route-card:hover::before {
+        left: 100%;
+    }
+
+    .favorite-route-card:hover {
+        border-color: #007bff;
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 123, 255, 0.2);
+    }
+
+    .route-line {
+        height: 2px;
+        background: linear-gradient(90deg, #007bff, #6c757d, #28a745);
+        border-radius: 1px;
+        position: relative;
+    }
+
+    .route-line i {
+        position: absolute;
+        top: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        padding: 0 5px;
+    }
+
+    /* 예매 테이블 스타일 */
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+        transform: scale(1.01);
+        transition: all 0.2s ease;
+    }
+
+    /* 버튼 애니메이션 */
+    .btn {
+        transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    /* 통계 카드 */
+    .card-body .d-flex {
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .card-body .d-flex:last-child {
+        border-bottom: none;
+    }
+
+    /* 모달 스타일 */
+    .modal-content {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+        border-radius: 15px 15px 0 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    /* 알림 스위치 스타일 */
+    .form-check-input:checked {
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+
+    .form-switch .form-check-input {
+        width: 2em;
+        margin-left: -2.5em;
+    }
+
+    /* 비밀번호 강도 표시 */
+    .password-strength .progress-bar {
+        transition: all 0.3s ease;
+    }
+
+    .strength-weak {
+        background-color: #dc3545;
+    }
+
+    .strength-medium {
+        background-color: #ffc107;
+    }
+
+    .strength-strong {
+        background-color: #28a745;
+    }
+
+    /* AI 대화내역 스타일 */
+    .chat-history-container {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .chat-item {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef !important;
+        transition: all 0.3s ease;
+    }
+
+    .chat-item:hover {
+        background: #ffffff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .message-bubble {
+        max-width: 80%;
+        word-wrap: break-word;
+    }
+
+    .user-message .message-bubble {
+        background: #e3f2fd !important;
+        border-left: 4px solid #2196f3;
+    }
+
+    .ai-message .message-bubble {
+        background: #f3e5f5 !important;
+        border-left: 4px solid #9c27b0;
+    }
+
+    .user-avatar, .ai-avatar {
+        flex-shrink: 0;
+    }
+
+    /* 탭 컨텐츠 숨김/표시 */
+    .tab-pane {
+        display: none;
+    }
+
+    .tab-pane.show {
+        display: block;
+    }
+
+    /* 반응형 디자인 */
+    @media (max-width: 768px) {
+        .tab-link {
+            font-size: 14px;
+            padding: 10px 15px;
+        }
+        
+        .favorite-route-card {
+            margin-bottom: 15px;
+        }
+        
+        .btn-group-sm .btn {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        .table-responsive {
+            font-size: 14px;
+        }
+        
+        .modal-dialog {
+            margin: 10px;
+        }
+        
+        .card-body {
+            padding: 15px;
+        }
+
+        .chat-history-container {
+            max-height: 400px;
+        }
+
+        .message-bubble {
+            max-width: 90%;
+            font-size: 14px;
+        }
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-3">
+        <!-- 사이드바 -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-circle"></i> 마이페이지
+                </h5>
+                <small>{{ current_user.name or current_user.username }}님 환영합니다</small>
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="#" class="list-group-item list-group-item-action active tab-link" data-target="profile">
+                    <i class="fas fa-user"></i> 프로필
+                </a>
+                <a href="#" class="list-group-item list-group-item-action tab-link" data-target="chat-history">
+                    <i class="fas fa-comments"></i> AI 대화내역
+                    <span class="badge bg-primary rounded-pill ms-auto">{{ chat_history|length }}</span>
+                </a>
+                <a href="#" class="list-group-item list-group-item-action tab-link" data-target="favorites">
+                    <i class="fas fa-heart"></i> 즐겨찾기
+                    <span class="badge bg-danger rounded-pill ms-auto">{{ favorites|length }}</span>
+                </a>
+                <a href="#" class="list-group-item list-group-item-action tab-link" data-target="settings">
+                    <i class="fas fa-cog"></i> 설정
+                </a>
+            </div>
+        </div>
+        
+        <!-- 사용자 통계 카드 -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-chart-bar"></i> 이용 통계</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>AI 대화:</span>
+                    <strong>{{ chat_history|length }}건</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>즐겨찾기:</span>
+                    <strong>{{ favorites|length }}개</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>가입일:</span>
+                    <strong>{{ current_user.created_at.strftime('%Y-%m-%d') }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="tab-content">
+            <!-- 프로필 탭 -->
+            <div class="tab-pane show" id="profile">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-user-edit"></i> 프로필 정보</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('update_profile') }}">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="username" class="form-label">
+                                            <i class="fas fa-user"></i> 사용자명
+                                        </label>
+                                        <input type="text" class="form-control" id="username" name="username" 
+                                               value="{{ current_user.username }}" readonly>
+                                        <div class="form-text">사용자명은 변경할 수 없습니다.</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="email" class="form-label">
+                                            <i class="fas fa-envelope"></i> 이메일
+                                        </label>
+                                        <input type="email" class="form-control" id="email" name="email" 
+                                               value="{{ current_user.email }}" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="name" class="form-label">
+                                            <i class="fas fa-id-card"></i> 이름
+                                        </label>
+                                        <input type="text" class="form-control" id="name" name="name" 
+                                               value="{{ current_user.name or '' }}" placeholder="실명을 입력하세요">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="phone" class="form-label">
+                                            <i class="fas fa-phone"></i> 전화번호
+                                        </label>
+                                        <input type="tel" class="form-control" id="phone" name="phone" 
+                                               value="{{ current_user.phone or '' }}" placeholder="010-1234-5678">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                                    <i class="fas fa-undo"></i> 초기화
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> 정보 수정
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AI 대화내역 탭 -->
+            <div class="tab-pane" id="chat-history">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-comments"></i> AI 대화내역</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshChatHistory()">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="clearChatHistory()">
+                                <i class="fas fa-trash"></i> 전체 삭제
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if chat_history %}
+                        <div class="chat-history-container">
+                            {% for chat in chat_history %}
+                            <div class="chat-item mb-3 p-3 border rounded" data-chat-id="{{ chat.id }}">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock"></i> {{ chat.timestamp }}
+                                    </small>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteChatItem('{{ chat.id }}')" title="삭제">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="chat-content">
+                                    <div class="user-message mb-2">
+                                        <div class="d-flex align-items-start">
+                                            <div class="user-avatar me-2">
+                                                <i class="fas fa-user-circle fa-lg text-primary"></i>
+                                            </div>
+                                            <div class="message-bubble bg-light p-2 rounded">
+                                                <strong>나:</strong> {{ chat.message }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ai-message">
+                                        <div class="d-flex align-items-start">
+                                            <div class="ai-avatar me-2">
+                                                <i class="fas fa-robot fa-lg text-success"></i>
+                                            </div>
+                                            <div class="message-bubble bg-primary text-white p-2 rounded">
+                                                <strong>AI:</strong> {{ chat.response }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                            <h6>AI 대화내역이 없습니다</h6>
+                            <p class="text-muted">아직 AI와 대화한 기록이 없습니다. 챗봇과 대화해보세요!</p>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                <a href="{{ url_for('chatbot') }}" class="btn btn-primary">
+                                    <i class="fas fa-comments"></i> 챗봇 시작하기
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 즐겨찾기 탭 -->
+            <div class="tab-pane" id="favorites">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-heart"></i> 즐겨찾기</h5>
+                        <div>
+                            <small class="text-muted me-3">{{ favorites|length }}개 경로</small>
+                            <button class="btn btn-sm btn-outline-primary" onclick="addNewFavorite()">
+                                <i class="fas fa-plus"></i> 추가
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if favorites %}
+                        <div class="row" id="favorites-container">
+                            {% for favorite in favorites %}
+                            <div class="col-md-6 col-lg-4 mb-3" id="favorite-{{ favorite.id }}">
+                                <div class="card favorite-route-card h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title mb-0">
+                                                <i class="fas fa-map-marker-alt text-primary me-1"></i>
+                                                {{ favorite.departure }}
+                                            </h6>
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="fas fa-ellipsis-v"></i>
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    <li><a class="dropdown-item" href="#" onclick="editFavorite('{{ favorite.id }}')">
+                                                        <i class="fas fa-edit"></i> 수정
+                                                    </a></li>
+                                                    <li><a class="dropdown-item text-danger" href="#" onclick="deleteFavorite('{{ favorite.id }}')">
+                                                        <i class="fas fa-trash-alt"></i> 삭제
+                                                    </a></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="text-center my-3">
+                                            <div class="route-line">
+                                                <i class="fas fa-route text-muted"></i>
+                                            </div>
+                                        </div>
+                                        
+                                        <h6 class="card-title text-end mb-3">
+                                            {{ favorite.arrival }}
+                                            <i class="fas fa-flag-checkered text-success ms-1"></i>
+                                        </h6>
+                                        
+                                        <div class="route-info mb-3">
+                                            <span class="badge bg-info">{{ favorite.transport_type }}</span>
+                                            <small class="text-muted ms-2">
+                                                <i class="fas fa-calendar-plus"></i>
+                                                {{ favorite.created_at }}
+                                            </small>
+                                        </div>
+                                        
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-primary btn-sm search-from-favorite"
+                                                    data-departure="{{ favorite.departure }}"
+                                                    data-destination="{{ favorite.arrival }}"
+                                                    data-transport="{{ favorite.transport_type }}"
+                                                    data-favorite='{{ {"departure": favorite.departure or "", "arrival": favorite.arrival or "", "transport_type": favorite.transport_type or ""}|tojson }}'
+                                                    onclick="searchFromFavorite(JSON.parse(this.getAttribute('data-favorite')))"
+                                            >
+                                                <i class="fas fa-search"></i> 바로 검색
+                                            </button>
+                                            <a href="{{ url_for('index') }}?departure={{ favorite.departure }}&destination={{ favorite.arrival }}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-external-link-alt"></i> 메인에서 검색
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-heart fa-3x text-muted mb-3"></i>
+                            <h6>즐겨찾기가 없습니다</h6>
+                            <p class="text-muted">자주 이용하는 경로를 즐겨찾기에 추가해보세요!</p>
+                            <button class="btn btn-primary" onclick="addNewFavorite()">
+                                <i class="fas fa-plus"></i> 즐겨찾기 추가
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 설정 탭 -->
+            <div class="tab-pane" id="settings">
+                <div class="row">
+                    <!-- 비밀번호 변경 -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-key"></i> 비밀번호 변경</h6>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST" action="{{ url_for('change_password') }}" id="passwordChangeForm">
+                                    <div class="mb-3">
+                                        <label for="current_password" class="form-label">현재 비밀번호</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="current_password" 
+                                                   name="current_password" required>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('current_password')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="new_password" class="form-label">새 비밀번호</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="new_password" 
+                                                   name="new_password" required>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('new_password')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div class="password-strength mt-2">
+                                            <div class="progress" style="height: 5px;">
+                                                <div class="progress-bar" id="passwordStrength" style="width: 0%"></div>
+                                            </div>
+                                            <small id="passwordStrengthText" class="text-muted">비밀번호 강도</small>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="confirm_password" class="form-label">새 비밀번호 확인</label>
+                                        <input type="password" class="form-control" id="confirm_password" 
+                                               name="confirm_password" required>
+                                        <div class="form-text" id="passwordMatch"></div>
+                                    </div>
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="fas fa-save"></i> 비밀번호 변경
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 계정 관리 -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-user-cog"></i> 계정 관리</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <h6>데이터 내보내기</h6>
+                                    <p class="text-muted small">개인 데이터를 JSON 형태로 다운로드합니다.</p>
+                                    <button class="btn btn-outline-info btn-sm" onclick="exportUserData()">
+                                        <i class="fas fa-download"></i> 데이터 내보내기
+                                    </button>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <h6>계정 정보</h6>
+                                    <div class="small">
+                                        <div class="d-flex justify-content-between py-1">
+                                            <span>사용자명:</span>
+                                            <strong>{{ current_user.username }}</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between py-1">
+                                            <span>이메일:</span>
+                                            <strong>{{ current_user.email }}</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between py-1">
+                                            <span>가입일:</span>
+                                            <strong>{{ current_user.created_at.strftime('%Y-%m-%d') }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-danger">
+                                    <h6>위험 구역</h6>
+                                    <p class="text-muted small">계정을 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
+                                    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                                        <i class="fas fa-trash-alt"></i> 계정 삭제
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 모든 모달들... (기존과 동일) -->
+<!-- 즐겨찾기 검색 결과 모달 -->
+<div class="modal fade" id="favoriteSearchModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-search"></i> 교통편 검색 결과
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center mb-3">
+                    <label for="favoriteSearchDate" class="form-label mb-0 me-2">날짜:</label>
+                    <input type="date" id="favoriteSearchDate" class="form-control" style="width:auto;" />
+                    <button type="button" class="btn btn-primary ms-2" id="favoriteSearchBtn">검색</button>
+                </div>
+                <div id="favoriteSearchResults">
+                    <!-- 검색 결과가 여기에 표시됩니다 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-primary" id="goToMainSearch">메인에서 더 보기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 즐겨찾기 추가/수정 모달 -->
+<div class="modal fade" id="favoriteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-heart"></i> <span id="favoriteModalTitle">즐겨찾기 추가</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="favoriteForm">
+          <input type="hidden" id="favoriteId" value="">
+          <div class="mb-3">
+            <label for="favoriteTransportType" class="form-label">교통수단</label>
+            <select class="form-select" id="favoriteTransportType" required>
+              <option value="">교통수단을 선택하세요</option>
+              <option value="KTX">KTX</option>
+              <option value="SRT">SRT</option>
+              <option value="고속버스">고속버스</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="favoriteDeparture" class="form-label">출발지</label>
+            <select class="form-select" id="favoriteDeparture" required>
+              <option value="">출발지를 선택하세요</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="favoriteDestination" class="form-label">도착지</label>
+            <select class="form-select" id="favoriteDestination" required>
+              <option value="">도착지를 선택하세요</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary" onclick="saveFavorite()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 계정 삭제 모달 -->
+<div class="modal fade" id="deleteAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> 계정 삭제
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>경고!</strong> 이 작업은 되돌릴 수 없습니다.
+                </div>
+                <p>정말로 계정을 삭제하시겠습니까?</p>
+                <p class="text-muted">계정 삭제 시 다음 데이터가 모두 삭제됩니다:</p>
+                <ul class="text-muted">
+                    <li>개인 정보</li>
+                    <li>예매 내역</li>
+                    <li>즐겨찾기</li>
+                    <li>채팅 기록</li>
+                </ul>
+                <div class="form-group">
+                    <label for="deleteConfirmText" class="form-label">확인을 위해 <strong>"계정삭제"</strong>를 입력하세요:</label>
+                    <input type="text" class="form-control" id="deleteConfirmText" placeholder="계정삭제">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" disabled onclick="confirmDeleteAccount()">
+                    <i class="fas fa-trash-alt"></i> 영구 삭제
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 예매 상세 정보 모달 -->
+<div class="modal fade" id="bookingDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-ticket-alt"></i> 예매 상세 정보
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="bookingDetailContent">
+                <!-- 예매 상세 정보가 여기에 표시됩니다 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // eslint-disable-next-line
+  window.chatHistory = {{ (chat_history or [])|tojson|safe }};
+  // eslint-disable-next-line
+  window.favoritesData = {{ (favorites or [])|tojson|safe }};
+  const stationOptions = {
+    'KTX': ['서울', '용산', '광명', '천안아산', '대전', '동대구', '포항', '부산', '광주송정', '목포', '여수EXPO', '순천', '익산', '정읍', '전주', '진주', '마산', '창원중앙', '울산(통도사)', '신경주'],
+    'SRT': ['수서', '동탄', '천안아산', '오송', '대전', '김천(구미)', '동대구', '신경주', '울산(통도사)', '부산', '공주', '익산', '정읍', '광주송정', '나주', '목포'],
+    '고속버스': ['서울경부', '서울남부', '동서울', '센트럴시티', '부산', '광주', '대구', '대전', '강릉', '춘천', '전주', '포항', '마산', '진주', '여수', '목포', '울산', '창원', '순천', '통영', '속초', '동해', '삼척']
+  };
+  const transportSelect = document.getElementById('favoriteTransportType');
+  const depSelect = document.getElementById('favoriteDeparture');
+  const arrSelect = document.getElementById('favoriteDestination');
+
+  function updateStationOptions() {
+    const transport = transportSelect.value;
+    const prevDep = depSelect.value;
+    const prevArr = arrSelect.value;
+    depSelect.innerHTML = '<option value="">출발지를 선택하세요</option>';
+    arrSelect.innerHTML = '<option value="">도착지를 선택하세요</option>';
+    if (stationOptions[transport]) {
+      stationOptions[transport].forEach(station => {
+        depSelect.innerHTML += `<option value="${station}">${station}</option>`;
+        arrSelect.innerHTML += `<option value="${station}">${station}</option>`;
+    });
+      if (stationOptions[transport].includes(prevDep)) depSelect.value = prevDep;
+      if (stationOptions[transport].includes(prevArr)) arrSelect.value = prevArr;
+    }
+  }
+
+  if (transportSelect && depSelect && arrSelect) {
+    transportSelect.addEventListener('change', updateStationOptions);
+    document.getElementById('favoriteModal').addEventListener('show.bs.modal', updateStationOptions);
+  }
+
+  // 탭 전환 기능 복구
+  const tabLinks = document.querySelectorAll('.tab-link');
+  const tabPanes = document.querySelectorAll('.tab-pane');
+  tabLinks.forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+      e.stopPropagation();
+      const targetId = this.getAttribute('data-target');
+      tabLinks.forEach(function(item) { item.classList.remove('active'); });
+                this.classList.add('active');
+      tabPanes.forEach(function(pane) {
+                    pane.classList.remove('show', 'active');
+        pane.style.display = 'none';
+                });
+      const targetPane = document.getElementById(targetId);
+                if (targetPane) {
+                    targetPane.classList.add('show', 'active');
+        targetPane.style.display = 'block';
+                }
+            });
+        });
+  if (tabLinks.length > 0 && tabPanes.length > 0) {
+    tabLinks[0].classList.add('active');
+    tabPanes[0].classList.add('show', 'active');
+    tabPanes[0].style.display = 'block';
+    }
+
+  // 즐겨찾기 추가 모달 열기 함수 (전역 등록)
+  window.addNewFavorite = function() {
+        document.getElementById('favoriteModalTitle').textContent = '즐겨찾기 추가';
+        document.getElementById('favoriteForm').reset();
+        document.getElementById('favoriteId').value = '';
+        const modal = new bootstrap.Modal(document.getElementById('favoriteModal'));
+        modal.show();
+  };
+
+  // 즐겨찾기 저장 함수 (전역 등록)
+  window.saveFavorite = function() {
+        const departure = document.getElementById('favoriteDeparture').value;
+        const destination = document.getElementById('favoriteDestination').value;
+        const transportType = document.getElementById('favoriteTransportType').value;
+        const favoriteId = document.getElementById('favoriteId').value;
+        
+        if (!departure || !destination || !transportType) {
+      alert('모든 필드를 입력해주세요.');
+            return;
+        }
+        if (departure === destination) {
+      alert('출발지와 도착지가 같을 수 없습니다.');
+            return;
+        }
+        
+    const url = favoriteId ? '/api/favorite/' + favoriteId : '/api/save_favorite';
+        const method = favoriteId ? 'PUT' : 'POST';
+        
+        fetch(url, {
+            method: method,
+      headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                departure: departure,
+                arrival: destination,
+                transport_type: transportType
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+        alert(data.message);
+                const modal = bootstrap.Modal.getInstance(document.getElementById('favoriteModal'));
+                modal.hide();
+        setTimeout(function() {
+                    window.location.reload();
+                }, 1000);
+            } else {
+        alert(data.message || '즐겨찾기 저장에 실패했습니다.');
+            }
+        })
+        .catch(error => {
+      alert('즐겨찾기 저장 중 오류가 발생했습니다.');
+            console.error('즐겨찾기 저장 오류:', error);
+    });
+  };
+
+  // 즐겨찾기에서 바로 검색 함수 (전역 등록)
+  window.searchFromFavorite = function(fav) {
+    const modal = new bootstrap.Modal(document.getElementById('favoriteSearchModal'));
+    const resultsDiv = document.getElementById('favoriteSearchResults');
+    const dateInput = document.getElementById('favoriteSearchDate');
+    const searchBtn = document.getElementById('favoriteSearchBtn');
+    // 오늘 날짜 기본값
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.value = today;
+    dateInput.min = today;
+
+    function doSearch() {
+      const dateVal = dateInput.value || today;
+      resultsDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p>검색 중...</p></div>';
+      fetch('/search_transportation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          departure: fav.departure,
+          destination: fav.arrival,
+          departure_date: dateVal.replace(/-/g, ''),
+          transport_type: (fav.transport_type === '고속버스' ? 'bus' : fav.transport_type.toLowerCase())
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        let html = '';
+        if (data.error) {
+          html = `<div class="alert alert-danger">${data.error}</div>`;
+        } else if (data.ktx_srt && data.ktx_srt.length > 0) {
+          html += '<h5>KTX/SRT 결과</h5>';
+          data.ktx_srt.forEach(train => {
+            html += `<div class="border rounded p-2 mb-2">
+              <b>${train.type || ''} ${train.train_no || ''}</b> 
+              ${train.departure_time || ''} (${train.departure || train.departure_station || fav.departure}) → ${train.arrival_time || ''} (${train.arrival || train.arrival_station || fav.arrival}) 
+              <span class="badge bg-success">${train.price || ''}</span>
+            </div>`;
+          });
+        } else if (data.bus && data.bus.length > 0) {
+          html += '<h5>고속버스 결과</h5>';
+          data.bus.forEach(bus => {
+            html += `<div class="border rounded p-2 mb-2">
+              <b>${bus.company || ''}</b> 
+              ${bus.departure_time || ''} (${bus.departure || bus.departure_station || fav.departure}) → ${bus.arrival_time || ''} (${bus.arrival || bus.arrival_station || fav.arrival}) 
+              <span class="badge bg-success">${bus.price || ''}</span>
+            </div>`;
+          });
+        } else {
+          html = '<div class="alert alert-warning">검색 결과가 없습니다.</div>';
+        }
+        resultsDiv.innerHTML = html;
+      })
+      .catch(err => {
+        resultsDiv.innerHTML = '<div class="alert alert-danger">검색 중 오류가 발생했습니다.</div>';
+      });
+    }
+
+    searchBtn.onclick = doSearch;
+    dateInput.onkeydown = function(e) { if (e.key === 'Enter') { doSearch(); } };
+
+    modal.show();
+    doSearch();
+  };
+
+  // 즐겨찾기 수정 함수 (전역 등록)
+  window.editFavorite = function(favoriteId) {
+    const fav = (window.favoritesData || []).find(f => String(f.id) === String(favoriteId));
+    if (!fav) {
+      alert('즐겨찾기 정보를 찾을 수 없습니다.');
+      return;
+    }
+    document.getElementById('favoriteModalTitle').textContent = '즐겨찾기 수정';
+    document.getElementById('favoriteId').value = fav.id;
+    document.getElementById('favoriteTransportType').value = fav.transport_type;
+    // 출발/도착지 옵션 갱신
+    const event = new Event('change');
+    document.getElementById('favoriteTransportType').dispatchEvent(event);
+    document.getElementById('favoriteDeparture').value = fav.departure;
+    document.getElementById('favoriteDestination').value = fav.arrival;
+    const modal = new bootstrap.Modal(document.getElementById('favoriteModal'));
+    modal.show();
+  };
+
+  // 즐겨찾기 삭제 함수 (전역 등록)
+  window.deleteFavorite = function(favoriteId) {
+    if (!confirm('정말로 이 즐겨찾기를 삭제하시겠습니까?')) return;
+    fetch('/api/favorite/' + favoriteId, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert(data.message || '삭제되었습니다.');
+        // 삭제된 카드 DOM에서 제거
+        const card = document.getElementById('favorite-' + favoriteId);
+        if (card) card.remove();
+        // 또는 새로고침
+        // window.location.reload();
+      } else {
+        alert(data.message || '삭제에 실패했습니다.');
+      }
+    })
+    .catch(error => {
+      alert('삭제 중 오류가 발생했습니다.');
+      console.error('즐겨찾기 삭제 오류:', error);
+    });
+  };
+
+});
+</script>
+{% endblock %}
+

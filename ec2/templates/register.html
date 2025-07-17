@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}회원가입 - AI 여행계획 사이트{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card">
+            <div class="card-header text-center">
+                <h3><i class="fas fa-user-plus"></i> 회원가입</h3>
+                <p class="text-white-50 mb-0">새 계정을 만들어 여행 계획을 시작하세요</p>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="registerForm">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">
+                            <i class="fas fa-user"></i> 사용자명
+                        </label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                        <div class="form-text">3-20자의 영문, 숫자, 언더스코어만 사용 가능합니다.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">
+                            <i class="fas fa-envelope"></i> 이메일
+                        </label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="form-text">유효한 이메일 주소를 입력해주세요.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <i class="fas fa-lock"></i> 비밀번호
+                        </label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">최소 8자 이상, 영문, 숫자, 특수문자를 포함해주세요.</div>
+                        <div class="password-strength mt-2">
+                            <div class="progress" style="height: 5px;">
+                                <div class="progress-bar" id="passwordStrength" style="width: 0%"></div>
+                            </div>
+                            <small id="passwordStrengthText" class="text-muted">비밀번호 강도</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">
+                            <i class="fas fa-lock"></i> 비밀번호 확인
+                        </label>
+                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
+                        <div class="form-text" id="passwordMatch"></div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="agreeTerms" required>
+                        <label class="form-check-label" for="agreeTerms">
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">이용약관</a>과 
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#privacyModal">개인정보처리방침</a>에 동의합니다.
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 mb-3">
+                        <i class="fas fa-user-plus"></i> 회원가입
+                    </button>
+                </form>
+                
+                <div class="text-center">
+                    <p class="text-muted">이미 계정이 있으신가요?</p>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-sign-in-alt"></i> 로그인
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 이용약관 모달 -->
+<div class="modal fade" id="termsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">이용약관</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>제 1조 (목적)</h6>
+                <p>이 약관은 AI 여행계획 사이트에서 제공하는 서비스의 이용조건 및 절차에 관한 기본적인 사항을 규정함을 목적으로 합니다.</p>
+                
+                <h6>제 2조 (정의)</h6>
+                <p>이 약관에서 사용하는 용어의 정의는 다음과 같습니다:</p>
+                <ul>
+                    <li>"서비스"라 함은 AI 여행계획 사이트에서 제공하는 여행 관련 정보 및 예약 서비스를 의미합니다.</li>
+                    <li>"이용자"라 함은 서비스에 접속하여 이 약관에 따라 서비스를 받는 회원 및 비회원을 말합니다.</li>
+                </ul>
+                
+                <h6>제 3조 (약관의 효력 및 변경)</h6>
+                <p>이 약관은 서비스를 이용하고자 하는 모든 이용자에 대하여 그 효력을 발생합니다.</p>
+                
+                <h6>제 4조 (서비스의 제공 및 변경)</h6>
+                <p>회사는 다음과 같은 업무를 수행합니다:</p>
+                <ul>
+                    <li>여행 정보 제공</li>
+                    <li>교통편 예약 정보 제공</li>
+                    <li>AI 챗봇 서비스</li>
+                    <li>기타 여행 관련 서비스</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 개인정보처리방침 모달 -->
+<div class="modal fade" id="privacyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">개인정보처리방침</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>1. 개인정보의 처리 목적</h6>
+                <p>AI 여행계획 사이트는 다음의 목적을 위하여 개인정보를 처리합니다:</p>
+                <ul>
+                    <li>회원 가입 및 관리</li>
+                    <li>서비스 제공 및 계약 이행</li>
+                    <li>고객 문의 처리</li>
+                </ul>
+                
+                <h6>2. 처리하는 개인정보 항목</h6>
+                <p>다음과 같은 개인정보를 처리합니다:</p>
+                <ul>
+                    <li>필수항목: 이름, 이메일, 비밀번호</li>
+                    <li>선택항목: 전화번호, 주소</li>
+                </ul>
+                
+                <h6>3. 개인정보의 보유 및 이용기간</h6>
+                <p>개인정보는 회원 탈퇴 시까지 보유하며, 관련 법령에 따라 일정 기간 보존할 수 있습니다.</p>
+                
+                <h6>4. 개인정보의 제3자 제공</h6>
+                <p>원칙적으로 개인정보를 제3자에게 제공하지 않습니다. 단, 법령에 의한 경우는 예외입니다.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        margin-top: 30px;
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .card-header {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        color: white;
+        border-radius: 0.75rem 0.75rem 0 0 !important;
+        padding: 1.5rem;
+    }
+    
+    .card-header h3 {
+        margin: 0;
+        font-weight: 600;
+    }
+    
+    .card-header p {
+        margin: 5px 0 0 0;
+        opacity: 0.9;
+    }
+    
+    .form-control:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .btn-primary {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        border: none;
+        padding: 12px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+    }
+    
+    .password-strength .progress-bar {
+        transition: all 0.3s ease;
+    }
+    
+    .strength-weak {
+        background-color: #dc3545;
+    }
+    
+    .strength-medium {
+        background-color: #ffc107;
+    }
+    
+    .strength-strong {
+        background-color: #28a745;
+    }
+    
+    .form-check-input:checked {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    
+    .modal-header {
+        background: linear-gradient(45deg, #007bff, #0056b3);
+        color: white;
+    }
+    
+    .modal-title {
+        font-weight: 600;
+    }
+    
+    .modal-body h6 {
+        color: #007bff;
+        font-weight: 600;
+        margin-top: 20px;
+    }
+    
+    .modal-body h6:first-child {
+        margin-top: 0;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 비밀번호 표시/숨김 토글
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passwordInput = document.getElementById('password');
+        const icon = this.querySelector('i');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    });
+    
+    // 비밀번호 강도 체크
+    document.getElementById('password').addEventListener('input', function() {
+        const password = this.value;
+        const strengthBar = document.getElementById('passwordStrength');
+        const strengthText = document.getElementById('passwordStrengthText');
+        
+        let strength = 0;
+        let strengthLabel = '';
+        
+        // 길이 체크
+        if (password.length >= 8) strength += 1;
+        
+        // 영문 소문자 체크
+        if (password.match(/[a-z]/)) strength += 1;
+        
+        // 영문 대문자 체크
+        if (password.match(/[A-Z]/)) strength += 1;
+        
+        // 숫자 체크
+        if (password.match(/[0-9]/)) strength += 1;
+        
+        // 특수문자 체크
+        if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
+        
+        // 강도 계산
+        const percentage = (strength / 5) * 100;
+        strengthBar.style.width = percentage + '%';
+        
+        // 클래스 및 텍스트 설정
+        strengthBar.className = 'progress-bar';
+        if (strength <= 2) {
+            strengthBar.classList.add('strength-weak');
+            strengthLabel = '약함';
+        } else if (strength <= 4) {
+            strengthBar.classList.add('strength-medium');
+            strengthLabel = '보통';
+        } else {
+            strengthBar.classList.add('strength-strong');
+            strengthLabel = '강함';
+        }
+        
+        strengthText.textContent = password ? `비밀번호 강도: ${strengthLabel}` : '비밀번호 강도';
+    });
+    
+    // 비밀번호 확인 체크
+    document.getElementById('confirmPassword').addEventListener('input', function() {
+        const password = document.getElementById('password').value;
+        const confirmPassword = this.value;
+        const matchText = document.getElementById('passwordMatch');
+        
+        if (confirmPassword === '') {
+            matchText.textContent = '';
+            matchText.className = 'form-text';
+        } else if (password === confirmPassword) {
+            matchText.textContent = '비밀번호가 일치합니다.';
+            matchText.className = 'form-text text-success';
+        } else {
+            matchText.textContent = '비밀번호가 일치하지 않습니다.';
+            matchText.className = 'form-text text-danger';
+        }
+    });
+    
+    // 폼 제출 유효성 검사
+    document.getElementById('registerForm').addEventListener('submit', function(e) {
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const agreeTerms = document.getElementById('agreeTerms').checked;
+        
+        if (password !== confirmPassword) {
+            e.preventDefault();
+            alert('비밀번호가 일치하지 않습니다.');
+            return;
+        }
+        
+        if (!agreeTerms) {
+            e.preventDefault();
+            alert('이용약관에 동의해주세요.');
+            return;
+        }
+        
+        // 로딩 처리
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 회원가입 중...';
+        submitBtn.disabled = true;
+    });
+    
+    // 사용자명 유효성 검사
+    document.getElementById('username').addEventListener('input', function() {
+        const username = this.value;
+        const regex = /^[a-zA-Z0-9_]{3,20}$/;
+        
+        if (username && !regex.test(username)) {
+            this.setCustomValidity('3-20자의 영문, 숫자, 언더스코어만 사용 가능합니다.');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+</script>
+{% endblock %}

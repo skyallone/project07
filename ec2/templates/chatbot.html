@@ -1,0 +1,953 @@
+{% extends "base.html" %}
+
+{% block title %}AI 여행 도우미 (Powered by Google Gemini){% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- 채팅 영역 -->
+            <div class="card chat-container">
+                <div class="card-header bg-gradient text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-robot"></i> AI 여행 도우미
+                        <span class="badge bg-success ms-2" id="status">Google Gemini 연결됨</span>
+                        <small class="d-block mt-1 opacity-75">Powered by Google Gemini AI</small>
+                    </h5>
+                </div>
+                <div class="card-body p-0 chat-body">
+                    <div id="chat-messages" class="chat-messages">
+                        <!-- 초기 메시지 -->
+                        <div class="message bot-message">
+                            <div class="message-avatar">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="message-content">
+                                <div class="message-bubble">
+                                    안녕하세요! 저는 Google Gemini AI로 구동되는 여행 전문 도우미입니다! 🤖✨<br><br>
+                                    
+                                    <strong>다음과 같은 도움을 드릴 수 있어요:</strong>
+                                    <div class="feature-grid mt-3">
+                                        <div class="feature-item">
+                                            🚄 <strong>교통편 정보</strong><br>
+                                            <small>KTX, SRT, 고속버스, 항공편</small>
+                                        </div>
+                                        <div class="feature-item">
+                                            🏨 <strong>숙박 & 맛집</strong><br>
+                                            <small>지역별 맞춤 추천</small>
+                                        </div>
+                                        <div class="feature-item">
+                                            🗺️ <strong>여행 코스</strong><br>
+                                            <small>일정 계획 및 루트 안내</small>
+                                        </div>
+                                        <div class="feature-item">
+                                            💰 <strong>예산 계획</strong><br>
+                                            <small>비용 계산 및 절약 팁</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-3 p-2 bg-light rounded">
+                                        💡 <strong>팁:</strong> 구체적으로 질문할수록 더 정확한 답변을 드릴 수 있어요!<br>
+                                        예: "서울에서 부산까지 내일 오전에 가려고 하는데 어떤 교통편이 좋을까요?"
+                                    </div>
+                                </div>
+                                <div class="message-time">방금 전</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="message-input" 
+                               placeholder="여행 관련 질문을 자유롭게 해보세요... (예: 제주도 3박4일 계획 짜줘)" 
+                               autocomplete="off" maxlength="500">
+                        <button class="btn btn-primary" type="button" id="send-btn" title="메시지 전송">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <div class="text-muted small">
+                            <span id="char-count">0</span>/500자
+                        </div>
+                        <div class="text-muted small" id="ai-status">
+                            <i class="fas fa-magic"></i> AI 준비 완료
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <!-- 빠른 질문 -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-lightning-bolt"></i> 인기 질문</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary quick-action" data-message="서울에서 부산으로 가는 가장 빠른 교통편과 소요시간, 가격 알려줘">
+                            <i class="fas fa-train"></i> 서울↔부산 교통편 완벽 가이드
+                        </button>
+                        <button class="btn btn-outline-success quick-action" data-message="제주도 3박4일 여행 계획을 짜줘. 렌터카 이용 예정이고 자연경관과 맛집을 중심으로 추천해줘">
+                            <i class="fas fa-plane"></i> 제주도 3박4일 완벽 계획
+                        </button>
+                        <button class="btn btn-outline-info quick-action" data-message="부산 여행에서 꼭 가봐야 할 맛집 10곳과 각각의 대표 메뉴 추천해줘">
+                            <i class="fas fa-utensils"></i> 부산 맛집 베스트 10
+                        </button>
+                        <button class="btn btn-outline-warning quick-action" data-message="겨울철 국내 여행지 추천해줘. 눈 구경하고 온천도 즐길 수 있는 곳으로">
+                            <i class="fas fa-snowflake"></i> 겨울 여행지 추천
+                        </button>
+                        <button class="btn btn-outline-secondary quick-action" data-message="1박2일 국내여행 예산을 5만원으로 잡고 있는데 가능한 여행지와 계획 추천해줘">
+                            <i class="fas fa-calculator"></i> 저예산 여행 계획
+                        </button>
+                        <button class="btn btn-outline-dark quick-action" data-message="연인과 함께 가기 좋은 로맨틱한 국내 여행지 추천해줘">
+                            <i class="fas fa-heart"></i> 커플 여행지 추천
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+        
+            
+            <!-- 최근 대화 (로그인 사용자만) -->
+            {% if current_user.is_authenticated %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-history"></i> 최근 대화</h6>
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearChatHistory()" title="기록 삭제">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="recent-chats">
+                        <div class="text-center py-3">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <small class="d-block mt-2">대화 기록 불러오는 중...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-user-plus"></i> 회원 혜택</h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-center">
+                        <i class="fas fa-star text-warning fa-2x mb-2"></i>
+                        <h6>로그인하고 더 많은 기능을!</h6>
+                        <ul class="list-unstyled text-start small">
+                            <li><i class="fas fa-check text-success"></i> 대화 기록 저장</li>
+                            <li><i class="fas fa-check text-success"></i> 개인화된 추천</li>
+                            <li><i class="fas fa-check text-success"></i> 여행 계획 저장</li>
+                            <li><i class="fas fa-check text-success"></i> 즐겨찾기 관리</li>
+                        </ul>
+                        <div class="d-grid gap-2 mt-3">
+                            <a href="{{ url_for('login') }}" class="btn btn-primary btn-sm">로그인</a>
+                            <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-sm">회원가입</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.chat-container {
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    min-height: 600px;
+}
+
+.chat-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background-attachment: fixed;
+    max-height: calc(80vh - 120px);
+}
+
+.message {
+    display: flex;
+    margin-bottom: 20px;
+    align-items: flex-start;
+    animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    font-size: 20px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.bot-message .message-avatar {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.user-message {
+    flex-direction: row-reverse;
+}
+
+.user-message .message-avatar {
+    background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+    color: #2d3436;
+    margin-left: 12px;
+    margin-right: 0;
+}
+
+.message-content {
+    max-width: 75%;
+    min-width: 120px;
+}
+
+.user-message .message-content {
+    text-align: right;
+}
+
+.message-bubble {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px 20px;
+    border-radius: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    word-wrap: break-word;
+    position: relative;
+    backdrop-filter: blur(10px);
+}
+
+.user-message .message-bubble {
+    background: linear-gradient(135deg, #74b9ff, #0984e3);
+    color: white;
+}
+
+.message-bubble::before {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border: 10px solid transparent;
+}
+
+.bot-message .message-bubble::before {
+    left: -18px;
+    top: 20px;
+    border-right-color: rgba(255, 255, 255, 0.95);
+}
+
+.user-message .message-bubble::before {
+    right: -18px;
+    top: 20px;
+    border-left-color: #74b9ff;
+}
+
+.message-time {
+    font-size: 11px;
+    color: #636e72;
+    margin-top: 8px;
+    font-weight: 500;
+}
+
+.user-message .message-time {
+    text-align: right;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.feature-item {
+    background: rgba(116, 185, 255, 0.1);
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.typing-indicator {
+    display: none;
+    padding: 15px 20px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    margin-bottom: 15px;
+    width: fit-content;
+    backdrop-filter: blur(10px);
+}
+
+.typing-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    margin: 0 3px;
+    animation: typingPulse 1.5s infinite;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingPulse {
+    0%, 60%, 100% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    30% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+.ai-info .info-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.ai-info .info-item:last-child {
+    border-bottom: none;
+}
+
+.recent-chat-item {
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    margin-bottom: 8px;
+}
+
+.recent-chat-item:hover {
+    background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+    border-color: #667eea;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.recent-chat-item span {
+    font-size: 13px;
+    color: #2d3436;
+    font-weight: 500;
+}
+
+#message-input {
+    border: 2px solid #ddd;
+    border-radius: 25px;
+    padding: 12px 20px;
+    font-size: 14px;
+}
+
+#message-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.quick-action {
+    transition: all 0.3s ease;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+}
+
+.quick-action:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.quick-action i {
+    margin-right: 8px;
+    width: 20px;
+}
+
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+    font-weight: 600;
+}
+
+.card-footer {
+    background: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid #e9ecef;
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+}
+
+#char-count {
+    font-weight: 600;
+}
+
+.char-warning {
+    color: #f39c12 !important;
+}
+
+.char-danger {
+    color: #e74c3c !important;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #2ecc71;
+    margin-right: 5px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(46, 204, 113, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+    }
+}
+
+/* 스크롤바 스타일링 */
+.chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 10px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #5a6fd8, #6a4190);
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+    .chat-container {
+        height: 70vh;
+        min-height: 500px;
+    }
+    
+    .chat-messages {
+        max-height: calc(70vh - 120px);
+    }
+    
+    .message-content {
+        max-width: 85%;
+    }
+    
+    .chat-messages {
+        padding: 15px;
+    }
+    
+    .feature-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-action {
+        font-size: 12px;
+        padding: 10px;
+    }
+}
+
+/* 다크 모드 지원 */
+@media (prefers-color-scheme: dark) {
+    .chat-messages {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    }
+    
+    .message-bubble {
+        background: rgba(44, 62, 80, 0.9);
+        color: #ecf0f1;
+    }
+    
+    .feature-item {
+        background: rgba(52, 73, 94, 0.3);
+        color: #ecf0f1;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 전역 변수
+let chatHistory = [];
+let isTyping = false;
+let aiConnected = true;
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    setupEventListeners();
+    updateStatus('연결됨');
+    loadRecentChats();
+    
+    // 초기 메시지 스크롤
+    setTimeout(scrollToBottom, 100);
+});
+
+function setupEventListeners() {
+    // 메시지 전송 버튼
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', sendMessage);
+    }
+    
+    // 메시지 입력 필드
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        // 엔터키로 메시지 전송
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // 글자 수 카운터
+        messageInput.addEventListener('input', updateCharCount);
+    }
+    
+    // 빠른 액션 버튼들
+    document.querySelectorAll('.quick-action').forEach(button => {
+        button.addEventListener('click', function() {
+            const message = this.getAttribute('data-message');
+            if (messageInput && message) {
+                messageInput.value = message;
+                updateCharCount();
+                sendMessage();
+            }
+        });
+    });
+    
+    // 최근 대화 클릭 이벤트
+    document.addEventListener('click', function(e) {
+        const recentChatItem = e.target.closest('.recent-chat-item');
+        if (recentChatItem && messageInput) {
+            const messageElement = recentChatItem.querySelector('span');
+            if (messageElement) {
+                const message = messageElement.textContent.trim();
+                messageInput.value = message;
+                updateCharCount();
+                sendMessage();
+            }
+        }
+    });
+}
+
+function updateCharCount() {
+    const input = document.getElementById('message-input');
+    const counter = document.getElementById('char-count');
+    
+    if (!input || !counter) return;
+    
+    const length = input.value.length;
+    counter.textContent = length;
+    
+    // 글자 수에 따른 색상 변경
+    counter.className = '';
+    if (length > 400) {
+        counter.classList.add('char-danger');
+    } else if (length > 300) {
+        counter.classList.add('char-warning');
+    }
+}
+
+function sendMessage() {
+    const messageInput = document.getElementById('message-input');
+    if (!messageInput) return;
+    
+    const message = messageInput.value.trim();
+    
+    // 유효성 검사
+    if (!message) {
+        showNotification('메시지를 입력해주세요.', 'warning');
+        return;
+    }
+    
+    if (isTyping) {
+        return;
+    }
+    
+    // 입력 필드 초기화
+    messageInput.value = '';
+    updateCharCount();
+    
+    // 사용자 메시지 표시
+    appendMessage(message, 'user');
+    
+    // 채팅 기록에 추가 (메모리에)
+    addToChatHistory('user', message);
+    
+    // AI 응답 요청
+    getAIResponse(message);
+}
+
+function appendMessage(message, sender) {
+    const timestamp = new Date().toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    const messageClass = sender === 'user' ? 'user-message' : 'bot-message';
+    const avatarIcon = sender === 'user' ? 'fa-user' : 'fa-robot';
+    
+    // HTML 이스케이프 처리
+    const safeMessage = message.replace(/&/g, '&amp;')
+                             .replace(/</g, '&lt;')
+                             .replace(/>/g, '&gt;')
+                             .replace(/"/g, '&quot;')
+                             .replace(/'/g, '&#39;')
+                             .replace(/\n/g, '<br>');
+    
+    const messageHTML = `
+        <div class="message ${messageClass}">
+            <div class="message-avatar">
+                <i class="fas ${avatarIcon}"></i>
+            </div>
+            <div class="message-content">
+                <div class="message-bubble">
+                    ${safeMessage}
+                </div>
+                <div class="message-time">${timestamp}</div>
+            </div>
+        </div>
+    `;
+    
+    const chatMessages = document.getElementById('chat-messages');
+    if (chatMessages) {
+        chatMessages.insertAdjacentHTML('beforeend', messageHTML);
+        scrollToBottom();
+    }
+}
+
+function getAIResponse(message) {
+    showTypingIndicator();
+    updateAIStatus('AI가 응답을 생성하는 중...');
+    
+    fetch('/api/chatbot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: message })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        hideTypingIndicator();
+        updateAIStatus('AI 준비 완료');
+        
+        if (data.success && data.response) {
+            appendMessage(data.response, 'bot');
+            addToChatHistory('bot', data.response);
+            updateStatus('연결됨');
+            aiConnected = true;
+        } else {
+            const errorMsg = data.response || '죄송합니다. 일시적인 오류가 발생했습니다. 다시 시도해주세요.';
+            appendMessage(errorMsg, 'bot');
+            updateStatus('오류');
+        }
+        
+        // 최근 대화 목록 업데이트
+        setTimeout(loadRecentChats, 1000);
+    })
+    .catch(error => {
+        hideTypingIndicator();
+        updateAIStatus('연결 오류');
+        console.error('AI 응답 오류:', error);
+        
+        let errorMessage = '죄송합니다. ';
+        if (error.message.includes('Failed to fetch')) {
+            errorMessage += 'AI 서버와 연결할 수 없습니다. 인터넷 연결을 확인해주세요.';
+            updateStatus('연결 끊김');
+        } else {
+            errorMessage += 'AI 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+            updateStatus('오류');
+        }
+        
+        appendMessage(errorMessage, 'bot');
+        aiConnected = false;
+        
+        // 5초 후 연결 재시도
+        setTimeout(() => {
+            updateAIStatus('재연결 시도 중...');
+            checkAIStatus();
+        }, 5000);
+    });
+}
+
+function showTypingIndicator() {
+    isTyping = true;
+    
+    const typingHTML = `
+        <div class="message bot-message typing-indicator">
+            <div class="message-avatar">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="message-content">
+                <div class="message-bubble">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const chatMessages = document.getElementById('chat-messages');
+    if (chatMessages) {
+        chatMessages.insertAdjacentHTML('beforeend', typingHTML);
+        const typingIndicator = document.querySelector('.typing-indicator');
+        if (typingIndicator) {
+            typingIndicator.style.display = 'flex';
+        }
+        scrollToBottom();
+    }
+}
+
+function hideTypingIndicator() {
+    isTyping = false;
+    const typingIndicator = document.querySelector('.typing-indicator');
+    if (typingIndicator) {
+        typingIndicator.remove();
+    }
+}
+
+function scrollToBottom() {
+    const chatMessages = document.getElementById('chat-messages');
+    if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
+
+function checkAIStatus() {
+    const button = event?.target?.closest('button');
+    if (button) {
+        const icon = button.querySelector('i');
+        const originalClass = icon.className;
+        
+        // 버튼 비활성화 및 스피너 표시
+        button.disabled = true;
+        icon.className = 'fas fa-spinner fa-spin';
+        
+        // 간단한 상태 확인 메시지 전송
+        fetch('/api/chatbot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: '안녕' })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateStatus('연결됨');
+                showNotification('AI가 정상적으로 연결되었습니다!', 'success');
+                aiConnected = true;
+            } else {
+                updateStatus('오류');
+                showNotification('AI 연결에 문제가 있습니다.', 'error');
+                aiConnected = false;
+            }
+        })
+        .catch(error => {
+            updateStatus('연결 끊김');
+            showNotification('AI 서버에 연결할 수 없습니다.', 'error');
+            aiConnected = false;
+        })
+        .finally(() => {
+            // 버튼 복원
+            if (button) {
+                button.disabled = false;
+                icon.className = originalClass;
+            }
+        });
+    }
+}
+
+function loadRecentChats() {
+    // Jinja2가 렌더링 시점에 true/false로 바꿔줌
+    var isAuthenticated = "{{ 'true' if current_user.is_authenticated else 'false' }}";
+    if (isAuthenticated !== "true") return;
+
+    fetch('/api/chat_history')
+    .then(response => response.json())
+    .then(data => {
+        const container = document.getElementById('recent-chats');
+        if (!container) return;
+        
+        if (data.success && data.history.length > 0) {
+            const recentChatsHTML = data.history.slice(-5).reverse().map(chat => {
+                return `
+                    <div class="recent-chat-item">
+                        <small class="text-muted">${chat.timestamp}</small><br>
+                        <span>${chat.message.substring(0, 40)}${chat.message.length > 40 ? '...' : ''}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = recentChatsHTML;
+        } else {
+            container.innerHTML = `
+                <div class="text-center py-3">
+                    <i class="fas fa-comments text-muted"></i>
+                    <small class="d-block mt-2">아직 대화 기록이 없습니다</small>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('채팅 기록 로드 오류:', error);
+    });
+}
+
+function addToChatHistory(sender, message) {
+    const timestamp = new Date().toISOString();
+    chatHistory.push({ sender, message, timestamp });
+    
+    // 최대 50개 메시지만 저장 (메모리 절약)
+    if (chatHistory.length > 50) {
+        chatHistory = chatHistory.slice(-50);
+    }
+}
+
+function clearChatHistory() {
+    if (confirm('채팅 기록을 모두 삭제하시겠습니까?\n(현재 세션의 메모리 기록만 삭제됩니다)')) {
+        chatHistory = [];
+        showNotification('현재 세션의 채팅 기록이 삭제되었습니다.', 'info');
+        
+        // 대화창에 안내 메시지 추가
+        appendMessage('현재 세션의 채팅 기록이 삭제되었습니다. 새로운 대화를 시작해보세요! 😊', 'bot');
+    }
+}
+
+function updateStatus(status) {
+    const statusElement = document.getElementById('status');
+    if (statusElement) {
+        let statusText, statusClass;
+        
+        switch(status) {
+            case '연결됨':
+                statusText = 'Google Gemini 연결됨';
+                statusClass = 'badge bg-success ms-2';
+                break;
+            case '연결 끊김':
+                statusText = '연결 끊김';
+                statusClass = 'badge bg-danger ms-2';
+                break;
+            case '오류':
+                statusText = '오류 발생';
+                statusClass = 'badge bg-warning ms-2';
+                break;
+            default:
+                statusText = status;
+                statusClass = 'badge bg-secondary ms-2';
+        }
+        
+        statusElement.textContent = statusText;
+        statusElement.className = statusClass;
+    }
+}
+
+function updateAIStatus(status) {
+    const aiStatus = document.getElementById('ai-status');
+    if (aiStatus) {
+        aiStatus.textContent = status;
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // 간단한 토스트 알림 생성
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 5000);
+}
+
+// 에러 처리
+window.addEventListener('error', function(e) {
+    console.error('JavaScript 오류:', e.error);
+});
+
+// 브라우저 호환성 체크
+if (!window.fetch) {
+    showNotification('이 브라우저는 지원되지 않습니다. 최신 브라우저를 사용해주세요.', 'error');
+}
+
+// 주기적 상태 확인 (5분마다)
+setInterval(() => {
+    if (!aiConnected) {
+        checkAIStatus();
+    }
+}, 300000);
+</script>
+{% endblock %}

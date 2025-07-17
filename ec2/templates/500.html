@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}서버 오류 - 500{% endblock %}
+
+{% block content %}
+<div class="container text-center">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="error-page">
+                <div class="error-icon">
+                    <i class="fas fa-tools fa-6x text-warning mb-4"></i>
+                </div>
+                <h1 class="error-code">500</h1>
+                <h2 class="error-title">서버 오류가 발생했습니다</h2>
+                <p class="error-description">
+                    죄송합니다. 일시적인 서버 오류가 발생했습니다.<br>
+                    잠시 후 다시 시도해주시거나, 문제가 계속되면 고객센터로 문의해주세요.
+                </p>
+                
+                <div class="error-actions mt-4">
+                    <button onclick="location.reload()" class="btn btn-primary btn-lg me-3">
+                        <i class="fas fa-redo"></i> 새로고침
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-home"></i> 홈으로
+                    </a>
+                </div>
+                
+                <div class="error-info mt-5">
+                    <div class="alert alert-light">
+                        <h6><i class="fas fa-info-circle text-info"></i> 문제 해결 팁</h6>
+                        <ul class="text-start mb-0">
+                            <li>잠시 후 페이지를 새로고침해보세요</li>
+                            <li>브라우저 캐시를 삭제해보세요</li>
+                            <li>다른 브라우저로 접속해보세요</li>
+                            <li>인터넷 연결을 확인해보세요</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="contact-info mt-4">
+                    <h5>고객센터</h5>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="contact-item">
+                                <i class="fas fa-phone fa-2x text-primary mb-2"></i>
+                                <h6>전화 문의</h6>
+                                <p>02-1234-5678<br><small class="text-muted">평일 09:00-18:00</small></p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="contact-item">
+                                <i class="fas fa-envelope fa-2x text-primary mb-2"></i>
+                                <h6>이메일 문의</h6>
+                                <p>support@aitravel.com<br><small class="text-muted">24시간 접수</small></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="status-check mt-4">
+                    <a href="#" onclick="checkServerStatus()" class="btn btn-outline-info">
+                        <i class="fas fa-heartbeat"></i> 서버 상태 확인
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-page {
+    padding: 3rem 0;
+}
+
+.error-code {
+    font-size: 8rem;
+    font-weight: bold;
+    color: #ffc107;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    margin: 0;
+}
+
+.error-title {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.error-description {
+    color: #6c757d;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.contact-item {
+    padding: 1rem;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.contact-item:hover {
+    background: #f8f9fa;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.contact-item h6 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.contact-item p {
+    margin: 0;
+    color: #495057;
+}
+
+.error-actions .btn {
+    min-width: 150px;
+}
+
+@media (max-width: 768px) {
+    .error-code {
+        font-size: 5rem;
+    }
+    
+    .error-actions .btn {
+        display: block;
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+    
+    .error-actions .me-3 {
+        margin-right: 0 !important;
+    }
+}
+
+/* 애니메이션 효과 */
+.error-icon {
+    animation: shake 2s ease-in-out infinite;
+}
+
+@keyframes shake {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    25% {
+        transform: translateX(-5px);
+    }
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+.error-page {
+    animation: fadeIn 1s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert {
+    animation: slideIn 1s ease-out 0.5s both;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+</style>
+
+<script>
+function checkServerStatus() {
+    const btn = event.target.closest('a');
+    const originalContent = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 확인 중...';
+    btn.disabled = true;
+    
+    // 간단한 상태 확인 (실제로는 서버 모니터링 API 호출)
+    fetch('/api/health', {
+        method: 'GET',
+        cache: 'no-cache'
+    })
+    .then(response => {
+        if (response.ok) {
+            btn.innerHTML = '<i class="fas fa-check text-success"></i> 서버 정상';
+            btn.className = 'btn btn-success';
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            throw new Error('Server not responding');
+        }
+    })
+    .catch(error => {
+        btn.innerHTML = '<i class="fas fa-times text-danger"></i> 서버 점검 중';
+        btn.className = 'btn btn-danger';
+        
+        setTimeout(() => {
+            btn.innerHTML = originalContent;
+            btn.className = 'btn btn-outline-info';
+            btn.disabled = false;
+        }, 3000);
+    });
+}
+
+// 자동 새로고침 (30초마다)
+let autoRefreshTimer = null;
+let countdownTimer = null;
+let countdown = 30;
+
+function startAutoRefresh() {
+    const statusElement = document.createElement('div');
+    statusElement.className = 'alert alert-info mt-3';
+    statusElement.innerHTML = `
+        <i class="fas fa-clock"></i> 
+        <span id="countdown">${countdown}</span>초 후 자동으로 새로고침됩니다.
+        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="stopAutoRefresh()">취소</button>
+    `;
+    
+    document.querySelector('.error-page').appendChild(statusElement);
+    
+    countdownTimer = setInterval(() => {
+        countdown--;
+        const countdownElement = document.getElementById('countdown');
+        if (countdownElement) {
+            countdownElement.textContent = countdown;
+        }
+        
+        if (countdown <= 0) {
+            location.reload();
+        }
+    }, 1000);
+}
+
+function stopAutoRefresh() {
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+    }
+    const alertElement = document.querySelector('.alert-info');
+    if (alertElement) {
+        alertElement.remove();
+    }
+}
+
+// 5초 후 자동 새로고침 시작
+setTimeout(startAutoRefresh, 5000);
+</script>
+{% endblock %}

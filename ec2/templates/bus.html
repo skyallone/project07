@@ -1,0 +1,32 @@
+<form method="post">
+  출발지:
+  <select name="departure">
+    {% for t in terminals %}
+      <option value="{{ t }}">{{ t }}</option>
+    {% endfor %}
+  </select>
+  도착지:
+  <select name="arrival">
+    {% for t in terminals %}
+      <option value="{{ t }}">{{ t }}</option>
+    {% endfor %}
+  </select>
+  날짜(YYYYMMDD): <input name="date" required>
+  <button type="submit">조회</button>
+</form>
+{% if error %}
+  <p style="color:red;">{{ error }}</p>
+{% endif %}
+{% if results %}
+  <table border="1">
+    <tr><th>출발시각</th><th>등급</th><th>요금</th><th>운수사</th></tr>
+    {% for r in results %}
+      <tr>
+        <td>{{ r.depTime }}</td>
+        <td>{{ r.grade }}</td>
+        <td>{{ r.charge }}</td>
+        <td>{{ r.company }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+{% endif %} 

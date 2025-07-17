@@ -1,0 +1,959 @@
+{% extends "base.html" %}
+
+{% block title %}AI 여행계획 사이트 - 메인{% endblock %}
+
+{% block content %}
+{# 랜덤 배경 이미지 선택 #}
+{% if bg_images is defined and bg_images and bg_images|length > 0 %}
+  {% set bg_image = bg_images|random %}
+  <div class="main-bg" style="background-image: url('{{ url_for('static', filename=bg_image) }}'); min-height: 100vh; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center;">
+    <div style="width:100%; max-width:1200px; margin:auto;">
+      <!-- 기존 컨텐츠 전체 시작 -->
+      <div class="row">
+          <div class="col-md-8 mx-auto">
+              <div class="card">
+                  <div class="card-header text-center">
+                      <h2><i class="fas fa-map-marked-alt"></i> 여행 계획하기</h2>
+                      <p class="text-white-50 mb-0">출발지, 도착지, 기간, 교통수단을 각각 선택하여 교통편을 확인하세요</p>
+                  </div>
+                  <div class="card-body">
+                      <form id="searchForm">
+                          <div class="row">
+                              <div class="col-md-6 mb-3">
+                                  <h5>가는편</h5>
+                                  <label class="form-label">교통수단</label>
+                                  <select class="form-select" id="outbound_transport" name="outbound_transport" required>
+                                      <option value="ktx_srt">KTX/SRT</option>
+                                      <option value="bus">버스</option>
+                                  </select>
+                                  <label class="form-label mt-2">출발지</label>
+                                  <select class="form-select" id="outbound_departure" name="outbound_departure" required></select>
+                                  <label class="form-label mt-2">도착지</label>
+                                  <select class="form-select" id="outbound_arrival" name="outbound_arrival" required></select>
+                                  <label class="form-label mt-2">출발 날짜</label>
+                                  <input type="date" class="form-control" id="outbound_date" name="outbound_date" required>
+                              </div>
+                              <div class="col-md-6 mb-3">
+                                  <h5>오는편</h5>
+                                  <label class="form-label">교통수단</label>
+                                  <select class="form-select" id="inbound_transport" name="inbound_transport" required>
+                                      <option value="ktx_srt">KTX/SRT</option>
+                                      <option value="bus">버스</option>
+                                  </select>
+                                  <label class="form-label mt-2">출발지</label>
+                                  <select class="form-select" id="inbound_departure" name="inbound_departure" required></select>
+                                  <label class="form-label mt-2">도착지</label>
+                                  <select class="form-select" id="inbound_arrival" name="inbound_arrival" required></select>
+                                  <label class="form-label mt-2">출발 날짜</label>
+                                  <input type="date" class="form-control" id="inbound_date" name="inbound_date" required>
+                              </div>
+                          </div>
+                          <div class="row">
+                              <div class="col-md-12 mb-3 d-flex align-items-end">
+                                  <button type="submit" class="btn btn-primary btn-lg w-100">
+                                      <i class="fas fa-search"></i> 교통편 검색
+                                  </button>
+                              </div>
+                          </div>
+                      </form>
+                  </div>
+              </div>
+          </div>
+      </div>
+      <!-- 즐겨찾기 바로가기 섹션 -->
+      {% if current_user.is_authenticated and favorites %}
+      <div class="row mt-4">
+          <div class="col-12">
+              <div class="card">
+                  <div class="card-header">
+                      <h5><i class="fas fa-heart text-danger"></i> 즐겨찾기 바로가기</h5>
+                  </div>
+                  <div class="card-body">
+                      <div class="row">
+                          {% for favorite in favorites %}
+                          <div class="col-md-4 col-lg-3 mb-3">
+                              <div class="favorite-quick-card" 
+                                   data-departure="{{ favorite.departure }}" 
+                                   data-destination="{{ favorite.arrival }}">
+                                  <div class="card h-100 favorite-card">
+                                      <div class="card-body text-center">
+                                          <i class="fas fa-route fa-2x text-primary mb-2"></i>
+                                          <h6 class="card-title">{{ favorite.departure }}</h6>
+                                          <i class="fas fa-arrow-down text-muted"></i>
+                                          <h6 class="card-title">{{ favorite.arrival }}</h6>
+                                          <small class="text-muted">{{ favorite.transport_type }}</small>
+                                          <div class="mt-2">
+                                              <button class="btn btn-sm btn-primary quick-search-btn">
+                                                  <i class="fas fa-search"></i> 바로 검색
+                                              </button>
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                          {% endfor %}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+      {% endif %}
+      <!-- 검색 결과 -->
+      <div id="searchResults" class="mt-4" style="display: none;">
+          <div class="row justify-content-center align-items-stretch">
+              <div class="col-md-6 d-flex flex-column">
+                  <div class="card h-100 w-100">
+                      <div class="card-header">출발 날짜 교통편</div>
+                      <div class="card-body">
+                          <div id="ktxSrtResults"></div>
+                          <div id="busResults"></div>
+                      </div>
+                  </div>
+              </div>
+              <div class="col-md-6 d-flex flex-column">
+                  <div class="card h-100 w-100">
+                      <div class="card-header">도착 날짜 교통편</div>
+                      <div class="card-body">
+                          <div id="ktxSrtResultsReturn"></div>
+                          <div id="busResultsReturn"></div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+      <!-- 로딩 스피너 -->
+      <div id="loadingSpinner" class="text-center mt-4" style="display: none;">
+          <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">실시간 교통편 정보를 확인하는 중...</p>
+          <small class="text-muted">SRT 및 KTX 사이트에서 최신 정보를 가져오고 있습니다.</small>
+      </div>
+      <!-- 즐겨찾기 추가 모달 -->
+      <div class="modal fade" id="favoriteModal" tabindex="-1">
+          <div class="modal-dialog">
+              <div class="modal-content">
+                  <div class="modal-header">
+                      <h5 class="modal-title">즐겨찾기 추가</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                      <p>이 경로를 즐겨찾기에 추가하시겠습니까?</p>
+                      <div id="favoriteRoute" class="alert alert-info"></div>
+                  </div>
+                  <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                      <button type="button" class="btn btn-primary" onclick="addToFavorite()">추가</button>
+                  </div>
+              </div>
+          </div>
+      </div>
+      <!-- 이하 기존 스타일 및 스크립트 등 -->
+    </div>
+  </div>
+{% else %}
+  <!-- 기존 컨텐츠만 출력 (배경 없음) -->
+  <div class="row">
+      <div class="col-md-8 mx-auto">
+          <div class="card">
+              <div class="card-header text-center">
+                  <h2><i class="fas fa-map-marked-alt"></i> 여행 계획하기</h2>
+                  <p class="text-white-50 mb-0">출발지, 도착지, 기간, 교통수단을 각각 선택하여 교통편을 확인하세요</p>
+              </div>
+              <div class="card-body">
+                  <form id="searchForm">
+                      <div class="row">
+                          <div class="col-md-6 mb-3">
+                              <h5>가는편</h5>
+                              <label class="form-label">교통수단</label>
+                              <select class="form-select" id="outbound_transport" name="outbound_transport" required>
+                                  <option value="ktx_srt">KTX/SRT</option>
+                                  <option value="bus">버스</option>
+                              </select>
+                              <label class="form-label mt-2">출발지</label>
+                              <select class="form-select" id="outbound_departure" name="outbound_departure" required></select>
+                              <label class="form-label mt-2">도착지</label>
+                              <select class="form-select" id="outbound_arrival" name="outbound_arrival" required></select>
+                              <label class="form-label mt-2">출발 날짜</label>
+                              <input type="date" class="form-control" id="outbound_date" name="outbound_date" required>
+                          </div>
+                          <div class="col-md-6 mb-3">
+                              <h5>오는편</h5>
+                              <label class="form-label">교통수단</label>
+                              <select class="form-select" id="inbound_transport" name="inbound_transport" required>
+                                  <option value="ktx_srt">KTX/SRT</option>
+                                  <option value="bus">버스</option>
+                              </select>
+                              <label class="form-label mt-2">출발지</label>
+                              <select class="form-select" id="inbound_departure" name="inbound_departure" required></select>
+                              <label class="form-label mt-2">도착지</label>
+                              <select class="form-select" id="inbound_arrival" name="inbound_arrival" required></select>
+                              <label class="form-label mt-2">출발 날짜</label>
+                              <input type="date" class="form-control" id="inbound_date" name="inbound_date" required>
+                          </div>
+                      </div>
+                      <div class="row">
+                          <div class="col-md-12 mb-3 d-flex align-items-end">
+                              <button type="submit" class="btn btn-primary btn-lg w-100">
+                                  <i class="fas fa-search"></i> 교통편 검색
+                              </button>
+                          </div>
+                      </div>
+                  </form>
+              </div>
+          </div>
+      </div>
+  </div>
+  <!-- 즐겨찾기 바로가기 섹션 -->
+  {% if current_user.is_authenticated and favorites %}
+  <div class="row mt-4">
+      <div class="col-12">
+          <div class="card">
+              <div class="card-header">
+                  <h5><i class="fas fa-heart text-danger"></i> 즐겨찾기 바로가기</h5>
+              </div>
+              <div class="card-body">
+                  <div class="row">
+                      {% for favorite in favorites %}
+                      <div class="col-md-4 col-lg-3 mb-3">
+                          <div class="favorite-quick-card" 
+                               data-departure="{{ favorite.departure }}" 
+                               data-destination="{{ favorite.arrival }}">
+                              <div class="card h-100 favorite-card">
+                                  <div class="card-body text-center">
+                                      <i class="fas fa-route fa-2x text-primary mb-2"></i>
+                                      <h6 class="card-title">{{ favorite.departure }}</h6>
+                                      <i class="fas fa-arrow-down text-muted"></i>
+                                      <h6 class="card-title">{{ favorite.arrival }}</h6>
+                                      <small class="text-muted">{{ favorite.transport_type }}</small>
+                                      <div class="mt-2">
+                                          <button class="btn btn-sm btn-primary quick-search-btn">
+                                              <i class="fas fa-search"></i> 바로 검색
+                                          </button>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                      {% endfor %}
+                  </div>
+              </div>
+          </div>
+      </div>
+  </div>
+  {% endif %}
+  <!-- 검색 결과 -->
+  <div id="searchResults" class="mt-4" style="display: none;">
+      <div class="row justify-content-center align-items-stretch">
+          <div class="col-md-6 d-flex flex-column">
+              <div class="card h-100 w-100">
+                  <div class="card-header">출발 날짜 교통편</div>
+                  <div class="card-body">
+                      <div id="ktxSrtResults"></div>
+                      <div id="busResults"></div>
+                  </div>
+              </div>
+          </div>
+          <div class="col-md-6 d-flex flex-column">
+              <div class="card h-100 w-100">
+                  <div class="card-header">도착 날짜 교통편</div>
+                  <div class="card-body">
+                      <div id="ktxSrtResultsReturn"></div>
+                      <div id="busResultsReturn"></div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  </div>
+  <!-- 로딩 스피너 -->
+  <div id="loadingSpinner" class="text-center mt-4" style="display: none;">
+      <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2">실시간 교통편 정보를 확인하는 중...</p>
+      <small class="text-muted">SRT 및 KTX 사이트에서 최신 정보를 가져오고 있습니다.</small>
+  </div>
+  <!-- 즐겨찾기 추가 모달 -->
+  <div class="modal fade" id="favoriteModal" tabindex="-1">
+      <div class="modal-dialog">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h5 class="modal-title">즐겨찾기 추가</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                  <p>이 경로를 즐겨찾기에 추가하시겠습니까?</p>
+                  <div id="favoriteRoute" class="alert alert-info"></div>
+              </div>
+              <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                  <button type="button" class="btn btn-primary" onclick="addToFavorite()">추가</button>
+              </div>
+          </div>
+      </div>
+  </div>
+  <!-- 이하 기존 스타일 및 스크립트 등 -->
+{% endif %}
+{% endblock %}
+
+<style>
+  /* 기존 스타일 전체를 여기에 위치 */
+</style>
+
+{% block scripts %}
+<script>
+// 전역 변수
+let currentSearchData = null;
+let isSearching = false;
+
+const ktxStations = {{ (ktx_stations or [])|tojson|safe }};
+const busTerminals = {{ (bus_terminals or [])|tojson|safe }};
+
+function updateTerminalsFor(type, depId, arrId) {
+    let list = [];
+    if (type === 'ktx_srt') list = ktxStations;
+    else if (type === 'bus') list = busTerminals;
+    const dep = document.getElementById(depId);
+    const arr = document.getElementById(arrId);
+    dep.innerHTML = '<option value="">출발지를 선택하세요</option>' + list.map(x => `<option value="${x}">${x}</option>`).join('');
+    arr.innerHTML = '<option value="">도착지를 선택하세요</option>' + list.map(x => `<option value="${x}">${x}</option>`).join('');
+}
+
+// 페이지 로드 시 초기화
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 가는편/오는편 교통수단 변경 시 출발지/도착지 목록 갱신
+    document.getElementById('outbound_transport').addEventListener('change', function() {
+        updateTerminalsFor(this.value, 'outbound_departure', 'outbound_arrival');
+    });
+    document.getElementById('inbound_transport').addEventListener('change', function() {
+        updateTerminalsFor(this.value, 'inbound_departure', 'inbound_arrival');
+    });
+    // 최초 1회 초기화
+    updateTerminalsFor(document.getElementById('outbound_transport').value, 'outbound_departure', 'outbound_arrival');
+    updateTerminalsFor(document.getElementById('inbound_transport').value, 'inbound_departure', 'inbound_arrival');
+
+    // 날짜 기본값 설정
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('outbound_date').min = today.toISOString().split('T')[0];
+    document.getElementById('outbound_date').value = today.toISOString().split('T')[0];
+    document.getElementById('inbound_date').min = tomorrow.toISOString().split('T')[0];
+    document.getElementById('inbound_date').value = tomorrow.toISOString().split('T')[0];
+
+    // 폼 제출 이벤트
+    document.getElementById('searchForm').addEventListener('submit', handleDualFormSubmit);
+
+    // URL 파라미터로 자동 검색 (즐겨찾기 바로검색 등에서 이동 시)
+    const urlParams = new URLSearchParams(window.location.search);
+    const dep = urlParams.get('departure');
+    const arr = urlParams.get('destination');
+    const type = urlParams.get('transport_type');
+    if (dep && arr && type) {
+        // 가는편 폼 자동 채우기
+        document.getElementById('outbound_departure').value = dep;
+        document.getElementById('outbound_arrival').value = arr;
+        document.getElementById('outbound_transport').value = type === 'KTX' ? 'ktx_srt' : (type === 'SRT' ? 'srt' : (type === '고속버스' || type === '버스' ? 'bus' : type));
+        // 출발지/도착지 옵션 갱신
+        updateTerminalsFor(document.getElementById('outbound_transport').value, 'outbound_departure', 'outbound_arrival');
+        document.getElementById('outbound_departure').value = dep;
+        document.getElementById('outbound_arrival').value = arr;
+        // 출발 날짜 오늘로 설정
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('outbound_date').value = today;
+        // 자동 검색 실행
+        setTimeout(() => {
+            document.getElementById('searchForm').dispatchEvent(new Event('submit', {cancelable: true}));
+        }, 300);
+    }
+});
+
+function handleDualFormSubmit(e) {
+    e.preventDefault();
+    if (isSearching) return;
+    // 가는편
+    let outbound = {
+        departure: document.getElementById('outbound_departure').value,
+        destination: document.getElementById('outbound_arrival').value,
+        departure_date: document.getElementById('outbound_date').value.replace(/-/g, ''),
+        transport_type: document.getElementById('outbound_transport').value
+    };
+    // 오는편
+    let inbound = {
+        departure: document.getElementById('inbound_departure').value,
+        destination: document.getElementById('inbound_arrival').value,
+        departure_date: document.getElementById('inbound_date').value.replace(/-/g, ''),
+        transport_type: document.getElementById('inbound_transport').value
+    };
+    currentSearchData = { outbound, inbound };
+    showLoading();
+    // 가는편 검색
+    const formData1 = new FormData();
+    Object.entries(outbound).forEach(([k, v]) => formData1.append(k, v));
+    searchTransportation(formData1, 'outbound');
+    // 오는편 검색
+    const formData2 = new FormData();
+    Object.entries(inbound).forEach(([k, v]) => formData2.append(k, v));
+    searchTransportation(formData2, 'inbound');
+}
+
+function initializePage() {
+    // 기본 날짜 설정
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // 최소 날짜를 오늘로 설정
+    const departureInput = document.getElementById('departure_date');
+    const arrivalInput = document.getElementById('arrival_date');
+    
+    if (departureInput) {
+        departureInput.min = today.toISOString().split('T')[0];
+        departureInput.value = today.toISOString().split('T')[0];
+    }
+    
+    if (arrivalInput) {
+        arrivalInput.min = tomorrow.toISOString().split('T')[0];
+    }
+    
+    // URL 파라미터 체크 (즐겨찾기에서 온 경우)
+    const urlParams = new URLSearchParams(window.location.search);
+    const departure = urlParams.get('departure');
+    const destination = urlParams.get('destination');
+    
+    if (departure && destination) {
+        document.getElementById('departure').value = departure;
+        document.getElementById('arrival').value = destination;
+        // 자동 검색 실행
+        setTimeout(() => {
+            handleFormSubmit(new Event('submit'));
+        }, 500);
+    }
+    
+    // 이벤트 리스너 설정
+    setupEventListeners();
+}
+
+function setupEventListeners() {
+    // 날짜 입력 필드 변경 이벤트
+    const departureInput = document.getElementById('departure_date');
+    const arrivalInput = document.getElementById('arrival_date');
+    
+    if (departureInput) {
+        departureInput.addEventListener('change', function() {
+            if (this.value && arrivalInput) {
+                const depDate = new Date(this.value);
+                const nextDay = new Date(depDate);
+                nextDay.setDate(nextDay.getDate() + 1);
+                arrivalInput.min = nextDay.toISOString().split('T')[0];
+                
+                if (arrivalInput.value && new Date(arrivalInput.value) <= depDate) {
+                    arrivalInput.value = '';
+                }
+            }
+        });
+    }
+    
+    // 폼 제출 이벤트
+    const searchForm = document.getElementById('searchForm');
+    if (searchForm) {
+        searchForm.addEventListener('submit', handleFormSubmit);
+    }
+}
+
+function setupQuickSearch() {
+    // 즐겨찾기 바로검색 버튼
+    document.querySelectorAll('.quick-search-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const card = this.closest('.favorite-quick-card');
+            const departure = card.getAttribute('data-departure');
+            const destination = card.getAttribute('data-destination');
+            
+            performQuickSearch(departure, destination);
+        });
+    });
+    
+    // 즐겨찾기 카드 클릭
+    document.querySelectorAll('.favorite-quick-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const departure = this.getAttribute('data-departure');
+            const destination = this.getAttribute('data-destination');
+            
+            // 폼에 값 설정
+            document.getElementById('departure').value = departure;
+            document.getElementById('arrival').value = destination;
+            
+            // 검색 실행
+            performQuickSearch(departure, destination);
+        });
+    });
+}
+
+function performQuickSearch(departure, destination) {
+    if (isSearching) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    currentSearchData = {
+        departure: departure,
+        destination: destination,
+        departure_date: today
+    };
+    
+    showLoading();
+    
+    const formData = new FormData();
+    formData.append('departure', departure);
+    formData.append('destination', destination);
+    formData.append('departure_date', today);
+    
+    searchTransportation(formData, 'outbound');
+}
+
+function handleFormSubmit(e) {
+    e.preventDefault();
+    if (isSearching) return;
+    let departure = document.getElementById('departure').value;
+    let destination = document.getElementById('arrival').value;
+    const departureDate = document.getElementById('departure_date').value;
+    const arrivalDate = document.getElementById('arrival_date').value;
+    const transportType = document.getElementById('transport_type').value;
+    // 유효성 검사 등 기존 코드...
+    currentSearchData = {
+        departure: departure,
+        destination: destination,
+        departure_date: departureDate,
+        arrival_date: arrivalDate,
+        transport_type: transportType
+    };
+    showLoading();
+    // 출발날짜 교통편 조회
+    const formData1 = new FormData();
+    formData1.append('departure', departure);
+    formData1.append('destination', destination);
+    formData1.append('departure_date', departureDate.replace(/-/g, ''));
+    formData1.append('transport_type', transportType);
+    searchTransportation(formData1, 'outbound');
+    // 도착날짜(=반대방향) 교통편 조회
+    if (arrivalDate) {
+        const formData2 = new FormData();
+        formData2.append('departure', destination);
+        formData2.append('destination', departure);
+        formData2.append('departure_date', arrivalDate.replace(/-/g, ''));
+        formData2.append('transport_type', transportType);
+        searchTransportation(formData2, 'inbound');
+    } else {
+        // 도착날짜 없으면 오른쪽 칼럼 비움
+        document.getElementById('ktxSrtResultsReturn').innerHTML = '';
+        document.getElementById('busResultsReturn').innerHTML = '';
+    }
+}
+
+function searchTransportation(formData, direction) {
+    isSearching = true;
+    fetch('/search_transportation', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        isSearching = false;
+        if (data.error) {
+            showNotification(data.error, 'error');
+            return;
+        }
+        displayResults(data, direction);
+        showResults();
+    })
+    .catch(error => {
+        hideLoading();
+        isSearching = false;
+        showNotification('검색 중 오류가 발생했습니다.', 'error');
+    });
+}
+
+function showLoading() {
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const searchResults = document.getElementById('searchResults');
+    
+    if (loadingSpinner) loadingSpinner.style.display = 'block';
+    if (searchResults) searchResults.style.display = 'none';
+}
+
+function hideLoading() {
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    if (loadingSpinner) loadingSpinner.style.display = 'none';
+}
+
+function showResults() {
+    const searchResults = document.getElementById('searchResults');
+    if (searchResults) {
+        searchResults.style.display = 'block';
+        searchResults.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+        });
+        
+        // 새로고침 버튼 추가
+        addRefreshButton();
+    }
+}
+
+function displayResults(data, direction) {
+    let ktxSrtContainer, busContainer, trainCount, busCount;
+    if (direction === 'outbound') {
+        ktxSrtContainer = document.getElementById('ktxSrtResults');
+        busContainer = document.getElementById('busResults');
+        trainCount = document.getElementById('trainResultCount');
+        busCount = document.getElementById('busResultCount');
+    } else if (direction === 'inbound') {
+        ktxSrtContainer = document.getElementById('ktxSrtResultsReturn');
+        busContainer = document.getElementById('busResultsReturn');
+        trainCount = null;
+        busCount = null;
+    }
+    // 결과 요약 정보 제거
+    // const searchInfo = data.search_info || currentSearchData;
+    // const transportType = searchInfo.transport_type;
+    // const resultSummary = `
+    //     <div class="result-summary">
+    //         <h6><i class="fas fa-info-circle"></i> 검색 결과</h6>
+    //         <p class="mb-1"><strong>${searchInfo.departure}</strong> → <strong>${searchInfo.destination}</strong></p>
+    //         <p class="mb-0"><small>출발일: ${searchInfo.departure_date}</small></p>
+    //     </div>
+    // `;
+    const searchInfo = data.search_info || currentSearchData;
+    const transportType = searchInfo.transport_type;
+    // KTX/SRT 결과
+    if (ktxSrtContainer) {
+        if ((transportType === 'ktx_srt') && data.ktx_srt && data.ktx_srt.length > 0) {
+            let ktxHtml = '';
+            data.ktx_srt.forEach((train, index) => {
+                ktxHtml += createTrainItem(train, index);
+            });
+            ktxSrtContainer.innerHTML = ktxHtml;
+            if (trainCount) {
+                trainCount.textContent = `${data.ktx_srt.length}개 결과`;
+            }
+        } else if (transportType === 'ktx_srt') {
+            ktxSrtContainer.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-train fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">검색된 KTX/SRT 정보가 없습니다.</p>
+                    <button class="btn btn-outline-primary btn-sm" onclick="handleFormSubmit(new Event('submit'))">
+                        <i class="fas fa-redo"></i> 다시 검색
+                    </button>
+                </div>
+            `;
+            if (trainCount) trainCount.textContent = '0개 결과';
+        } else {
+            ktxSrtContainer.innerHTML = '';
+            if (trainCount) trainCount.textContent = '';
+        }
+    }
+    // 고속버스 결과
+    if (busContainer) {
+        if (transportType === 'bus' && data.bus && data.bus.length > 0) {
+            let busHtml = '';
+            data.bus.forEach((bus, index) => {
+                busHtml += createBusItem(bus, index);
+            });
+            busContainer.innerHTML = busHtml;
+            if (busCount) {
+                busCount.textContent = `${data.bus.length}개 결과`;
+            }
+        } else if (transportType === 'bus') {
+            busContainer.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-bus fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">검색된 고속버스 정보가 없습니다.</p>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="handleFormSubmit(new Event('submit'))">
+                        <i class="fas fa-redo"></i> 다시 검색
+                    </button>
+                </div>
+            `;
+            if (busCount) busCount.textContent = '0개 결과';
+        } else {
+            busContainer.innerHTML = '';
+            if (busCount) busCount.textContent = '';
+        }
+    }
+}
+
+function createTrainItem(train, index) {
+    const trainType = train.type || 'KTX';
+    const trainNumber = train.train_no || `${trainType}${100 + index}`;
+    return `
+        <div class="card mb-3 shadow-sm" style="min-width:220px;">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-2">${trainType} <span class="text-primary">${trainNumber}</span></h5>
+                <div class="mb-2">
+                    <span class="fw-bold">${train.departure_time}</span>
+                    <span class="text-muted">(${train.departure || ''})</span>
+                    <i class="fas fa-arrow-right mx-2"></i>
+                    <span class="fw-bold">${train.arrival_time}</span>
+                    <span class="text-muted">(${train.arrival || ''})</span>
+                </div>
+                <div class="mb-2">
+                    <span class="badge bg-primary fs-6">${train.price}</span>
+                </div>
+                <a href="/redirect_booking?type=${trainType.toLowerCase()}" 
+                   class="btn btn-outline-primary btn-sm" target="_blank">
+                    <i class="fas fa-external-link-alt"></i> 예매하기
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+function createBusItem(bus, index) {
+    const company = bus.company || '고속버스';
+    return `
+        <div class="transportation-item">
+            <button class="favorite-btn" onclick="showFavoriteModal('bus', '${company}')" title="즐겨찾기 추가">
+                <i class="far fa-heart"></i>
+            </button>
+            <div class="train-info">
+                <span class="train-type" style="background: linear-gradient(135deg, #28a745, #20c997);">${company}</span>
+            </div>
+            <div class="time-info">
+                <div class="time-station">
+                    <div class="time-large">${bus.departure_time}</div>
+                    <div class="station-name">${bus.departure || ''}</div>
+                </div>
+                <div class="time-arrow">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+                <div class="time-station">
+                    <div class="time-large">${bus.arrival_time}</div>
+                    <div class="station-name">${bus.arrival || ''}</div>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="price-info">
+                    <div class="price-amount">${bus.price}</div>
+                </div>
+                <div class="booking-actions">
+                    <a href="{{ url_for('redirect_booking') }}?type=bus" 
+                       target="_blank" 
+                       class="btn btn-success btn-sm">
+                        <i class="fas fa-external-link-alt"></i> 예매하기
+                    </a>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function showFavoriteModal(type, name) {
+    if (!currentSearchData) {
+        showNotification('검색을 먼저 진행해주세요.', 'warning');
+        return;
+    }
+    
+    const routeText = `${currentSearchData.departure} → ${currentSearchData.destination} (${name})`;
+    const favoriteRoute = document.getElementById('favoriteRoute');
+    if (favoriteRoute) {
+        favoriteRoute.textContent = routeText;
+    }
+    
+    // 모달 데이터 저장
+    const modal = document.getElementById('favoriteModal');
+    if (modal) {
+        modal.setAttribute('data-type', type);
+        modal.setAttribute('data-name', name);
+        
+        // Bootstrap 모달 표시
+        if (typeof bootstrap !== 'undefined') {
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
+    }
+}
+
+function addToFavorite() {
+    const modal = document.getElementById('favoriteModal');
+    if (!modal) return;
+    
+    const type = modal.getAttribute('data-type');
+    const name = modal.getAttribute('data-name');
+    
+    if (!currentSearchData) {
+        showNotification('오류가 발생했습니다.', 'error');
+        return;
+    }
+
+    const favoriteData = {
+        departure: currentSearchData.departure,
+        arrival: currentSearchData.destination,
+        transport_type: name
+    };
+    
+    fetch('/api/save_favorite', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(favoriteData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('즐겨찾기에 추가되었습니다!', 'success');
+            // 모달 닫기
+            if (typeof bootstrap !== 'undefined') {
+                const bsModal = bootstrap.Modal.getInstance(modal);
+                if (bsModal) bsModal.hide();
+            }
+            // 페이지 새로고침하여 즐겨찾기 목록 업데이트
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            if (data.message && data.message.includes('로그인')) {
+                showNotification('로그인이 필요한 서비스입니다.', 'warning');
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 1500);
+            } else {
+                showNotification(data.message || '즐겨찾기 추가에 실패했습니다.', 'error');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('즐겨찾기 추가 오류:', error);
+        showNotification('즐겨찾기 추가 중 오류가 발생했습니다.', 'error');
+    });
+}
+
+function showNotification(message, type = 'info') {
+    // 기존 알림 제거
+    const existingToasts = document.querySelectorAll('.custom-toast');
+    existingToasts.forEach(toast => toast.remove());
+    
+    // 새 토스트 알림 생성
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'error' ? 'danger' : type === 'warning' ? 'warning' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show custom-toast`;
+    toast.style.cssText = `
+        position: fixed; 
+        top: 20px; 
+        right: 20px; 
+        z-index: 9999; 
+        min-width: 300px;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border: none;
+        border-radius: 8px;
+    `;
+    
+    const icon = type === 'success' ? 'check-circle' : 
+                 type === 'error' ? 'exclamation-triangle' : 
+                 type === 'warning' ? 'exclamation-circle' : 'info-circle';
+    
+    toast.innerHTML = `
+        <i class="fas fa-${icon} me-2"></i>${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+}
+
+// 새로고침 버튼 추가
+function addRefreshButton() {
+    if (document.querySelector('.refresh-btn')) return;
+    
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'refresh-btn';
+    refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+    refreshBtn.title = '검색 새로고침';
+    refreshBtn.onclick = function() {
+        if (currentSearchData) {
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            const formData = new FormData();
+            Object.keys(currentSearchData).forEach(key => {
+                if (currentSearchData[key]) {
+                    formData.append(key, currentSearchData[key]);
+                }
+            });
+            searchTransportation(formData, 'outbound'); // 출발날짜 검색
+            // 도착날짜 검색 (반대방향)
+            if (currentSearchData.arrival_date) {
+                const formDataReturn = new FormData();
+                formDataReturn.append('departure', currentSearchData.destination);
+                formDataReturn.append('destination', currentSearchData.departure);
+                formDataReturn.append('departure_date', currentSearchData.arrival_date.replace(/-/g, ''));
+                formDataReturn.append('transport_type', currentSearchData.transport_type);
+                searchTransportation(formDataReturn, 'inbound');
+            }
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-sync-alt"></i>';
+            }, 2000);
+        }
+    };
+    
+    document.body.appendChild(refreshBtn);
+}
+
+// 키보드 단축키
+document.addEventListener('keydown', function(e) {
+    // Ctrl + Enter로 검색
+    if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        const searchForm = document.getElementById('searchForm');
+        if (searchForm) {
+            handleFormSubmit(new Event('submit'));
+        }
+    }
+    
+    // F5 또는 Ctrl + R로 결과 새로고침
+    if ((e.key === 'F5' || (e.ctrlKey && e.key === 'r')) && currentSearchData) {
+        e.preventDefault();
+        const formData = new FormData();
+        Object.keys(currentSearchData).forEach(key => {
+            if (currentSearchData[key]) {
+                formData.append(key, currentSearchData[key]);
+            }
+        });
+        searchTransportation(formData, 'outbound'); // 출발날짜 검색
+        // 도착날짜 검색 (반대방향)
+        if (currentSearchData.arrival_date) {
+            const formDataReturn = new FormData();
+            formDataReturn.append('departure', currentSearchData.destination);
+            formDataReturn.append('destination', currentSearchData.departure);
+            formDataReturn.append('departure_date', currentSearchData.arrival_date.replace(/-/g, ''));
+            formDataReturn.append('transport_type', currentSearchData.transport_type);
+            searchTransportation(formDataReturn, 'inbound');
+        }
+    }
+});
+
+// 에러 처리
+window.addEventListener('error', function(e) {
+    console.error('JavaScript 오류:', e.error);
+});
+
+// 브라우저 호환성 체크
+if (!window.fetch) {
+    showNotification('이 브라우저는 지원되지 않습니다. 최신 브라우저를 사용해주세요.', 'error');
+}
+
+// 오프라인 상태 체크
+window.addEventListener('online', function() {
+    showNotification('인터넷 연결이 복구되었습니다.', 'success');
+});
+
+window.addEventListener('offline', function() {
+    showNotification('인터넷 연결이 끊어졌습니다. 연결을 확인해주세요.', 'warning');
+});
+</script>
+{% endblock %}
