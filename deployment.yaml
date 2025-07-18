@@ -12,8 +12,6 @@ spec:
       labels:
         app: flask-app
     spec:
-      nodeSelector:
-        kubernetes.io/instance-type: t3.medium
       containers:
       - name: flask-app
         image: 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:latest
