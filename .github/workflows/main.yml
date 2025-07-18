@@ -17,8 +17,9 @@ jobs:
       - name: 코드 체크아웃
         uses: actions/checkout@v4 # 저장소 코드 가져오기
 
-      - name: 현재 디렉토리 구조 확인 # <-- 이 단계를 추가했습니다!
-        run: ls -R
+      # 디버깅을 위한 '현재 디렉토리 구조 확인' 단계는 이제 필요 없으므로 제거해도 됩니다.
+      # - name: 현재 디렉토리 구조 확인
+      #   run: ls -R
 
       - name: Python 환경 설정
         uses: actions/setup-python@v5 # Python 환경 설정
@@ -26,16 +27,8 @@ jobs:
           python-version: '3.12.3' # 사용하시는 Python 버전 지정
 
       - name: 의존성 설치
-        run: pip install -r requirements.txt
-        # 'ls -R' 로그를 보고 'requirements.txt'의 정확한 경로를 확인하여
-        # 아래 working-directory를 수정해야 합니다.
-        # 예: working-directory: ./feature/ec2-flask
-        # 예: working-directory: ./my_app
-        # 만약 requirements.txt가 최상위 폴더에 있다면 working-directory 줄을 삭제하세요.
-        working-directory: ./feature/ec2-flask # <-- 일단 이전에 추정했던 경로로 유지
+        run: pip install -r requirements.txt # working-directory 줄을 모두 제거합니다.
 
       - name: Flask 앱 테스트 실행
-        run: pytest # Flask 앱의 테스트를 실행하는 명령어 (예: pytest, python -m unittest discover 등)
-        # 'ls -R' 로그를 보고 테스트 파일의 정확한 경로를 확인하여
-        # 아래 working-directory를 수정해야 합니다.
-        working-directory: ./feature/ec2-flask # <-- 일단 이전에 추정했던 경로로 유지
+        run: pytest # Flask 앱의 테스트를 실행하는 명령어 (pytest를 사용한다고 가정)
+        # working-directory 줄을 모두 제거합니다.
