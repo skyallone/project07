@@ -4,10 +4,10 @@ name: 프로젝트
 on:
   push:
     branches:
-      - main # 'main' 브랜치에 푸시될 때 실행
+      - main
   pull_request:
     branches:
-      - main # 'main' 브랜치로 풀 리퀘스트가 열릴 때 실행
+      - main
 
 jobs:
   build-and-test:
@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
+        # with:
+        #   path: project07 # <- 만약 checkout이 project07 폴더로 직접 했다면 이 줄은 필요 없음
 
       - name: Node.js 설정
         uses: actions/setup-node@v4
@@ -24,12 +26,18 @@ jobs:
 
       - name: 의존성 설치
         run: npm install
-        working-directory: ./project07 # <-- 이 경로가 정확한지 다시 확인!
+        working-directory: ./project07 # <- 이 부분을 확인하세요!
+                                       # 만약 저장소 루트에 project07 폴더가 있고
+                                       # 그 안에 package.json이 있다면 이 경로는 맞을 수 있습니다.
+                                       # 하지만 에러 메시지에 '.../project07/./project07'이라고 떴으니
+                                       # 이미 project07 안으로 들어간 상태에서 또 project07을 찾으려 한 것입니다.
+                                       # 따라서, 대부분의 경우 이 줄을
+                                       # working-directory: .  <- 이렇게 바꾸거나 아예 삭제해야 합니다.
 
       - name: 프로젝트 빌드
         run: npm run build
-        working-directory: ./project07 # <-- 이 경로가 정확한지 다시 확인!
+        working-directory: ./project07 # <- 마찬가지로 수정
 
       - name: 테스트 실행
         run: npm test
-        working-directory: ./project07 # <-- 이 경로가 정확한지 다시 확인!
+        working-directory: ./project07 # <- 마찬가지로 수정
