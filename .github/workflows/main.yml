@@ -45,7 +45,12 @@ jobs:
 
       - name: Update Kubeconfig
         run: |
-          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME 
+          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME --role-arn $EKS_ROLE_ARN
+
+      - name: Test kubectl access
+        run: |
+          kubectl auth can-i get pods
+          kubectl get namespaces    
 
       - name: Set secrets for Kubernetes
         run: |
