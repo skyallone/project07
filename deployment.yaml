@@ -1,7 +1,10 @@
+# deployment.yaml - Karpenter 호환 설정
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: flask-app
+  labels:
+    app: flask-app
 spec:
   replicas: 2
   selector:
@@ -12,56 +15,163 @@ spec:
       labels:
         app: flask-app
     spec:
+      # 노드 선택기 - Karpenter가 프로비저닝한 노드 선택 (선택사항)
+      # nodeSelector:
+      #   karpenter.sh/nodepool: default
+      
+      # 톨러레이션 - 테인트된 노드에서도 실행 가능 (필요한 경우만)
+      # tolerations:
+      #   - key: example.com/special-taint
+      #     operator: Equal
+      #     value: "true"
+      #     effect: NoSchedule
+      
+      # 어피니티 - 노드 분산 배치
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - flask-app
+                topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: karpenter.sh/capacity-type
+                    operator: In
+                    values:
+                      - spot
+                      - on-demand
+      
       containers:
-      - name: flask-app
-        image: 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:latest
-        ports:
-        - containerPort: 5000
-        env:
-        - name: GEMINI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: GEMINI_API_KEY
-        - name: TAGO_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: TAGO_API_KEY
-        - name: API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: API_KEY
-        - name: FLASK_SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: FLASK_SECRET_KEY
-        - name: MYSQL_URI
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: MYSQL_URI
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: AWS_ACCESS_KEY_ID
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: AWS_SECRET_ACCESS_KEY
-        - name: AWS_REGION
-          value: "ap-northeast-2"
-        - name: S3_BUCKET
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: S3_BUCKET
-        - name: DYNAMODB_TABLE
-          valueFrom:
-            secretKeyRef:
-              name: flask-secrets
-              key: DYNAMODB_TABLE 
+        - name: flask-app
+          image: 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:latest
+          ports:
+            - containerPort: 5000
+          
+          # 리소스 요청/제한 - Karpenter가 적절한 노드 크기 결정
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          
+          # 환경 변수
+          env:
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: GEMINI_API_KEY
+            - name: TAGO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: TAGO_API_KEY
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: API_KEY
+            - name: FLASK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: FLASK_SECRET_KEY
+            - name: MYSQL_URI
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: MYSQL_URI
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              value: "ap-northeast-2"
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: S3_BUCKET
+            - name: DYNAMODB_TABLE
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: DYNAMODB_TABLE
+          
+          # 헬스 체크
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+
+---
+# HorizontalPodAutoscaler - 파드 자동 스케일링
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: flask-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: flask-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
