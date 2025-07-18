@@ -1,35 +1,35 @@
 # .github/workflows/main.yml
-name: 프로젝트 CI/CD 파이프라인
+name: 프로젝트 CI/CD 파이프라인 # 워크플로의 이름입니다.
 
 on:
   push:
     branches:
-      - main
+      - main # main 브랜치에 푸시될 때 실행
   pull_request:
     branches:
-      - main
+      - main # main 브랜치로 풀 리퀘스트가 열릴 때 실행
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  build-and-test: # 'build-and-test'라는 이름의 작업을 정의합니다.
+    runs-on: ubuntu-latest # 최신 Ubuntu 환경에서 실행됩니다.
 
-    steps:
-      - name: 코드 체크아웃
+    steps: # 이 작업 안에서 순서대로 실행될 단계들을 정의합니다.
+      - name: 코드 체크아웃 # GitHub 저장소의 코드를 가상 환경으로 가져옵니다.
         uses: actions/checkout@v4
 
-      - name: Python 환경 설정
+      - name: Python 환경 설정 # Python 환경을 설정합니다.
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12.3'
+          python-version: '3.12.3' # 사용하시는 Python 버전입니다.
 
-      - name: 의존성 설치
+      - name: 의존성 설치 # Flask 프로젝트에 필요한 라이브러리들을 설치합니다.
         run: pip install -r requirements.txt
-        # working-directory 줄은 이전 단계에서 제거했으므로 여기서는 사용하지 않습니다.
+        # working-directory: ./feature/flask-ec2 # <-- 이 줄을 삭제해야 합니다.
 
-      # 만약 위 '의존성 설치'에서 pytest가 설치되지 않는다면
-      # 아래 줄을 임시로 추가하여 pytest를 명시적으로 설치해 볼 수 있습니다.
-      # - name: Pytest 명시적 설치 (디버깅용)
-      #   run: pip install pytest
+      - name: Flask 앱 테스트 실행 # Flask 앱의 테스트 코드를 실행합니다.
+        run: pytest # pytest를 계속 사용하려면 유지, 아니라면 이 줄을 제거하거나 다른 명령어로 변경하세요.
+        # working-directory: ./feature/flask-ec2 # <-- 이 줄을 삭제해야 합니다.
+
 
       - name: Flask 앱 테스트 실행
         run: pytest # pytest가 PATH에 포함되어 있어 직접 실행됩니다.
