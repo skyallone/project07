@@ -666,12 +666,12 @@ def change_password():
     return redirect(url_for('mypage'))
 
 # Gemini API 키 설정
-GEMINI_API_KEY = 'AIzaSyAjyQu-bO4x6BD4YK81nst11TYxWwfHDNQ'
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel('gemini-2.0-flash')
 
 # TAGO API 키 설정 (국토교통부 열차정보 API)
-TAGO_API_KEY = 'TaVMa14CGsWYpQE9wR0j6ksJlGbaQ1mSGcnU+/45DrbL3tnDU8Tc0brtWZLfLJlZ8Rg7qLgImp5Y4JjkafzcAg=='
+TAGO_API_KEY = os.environ.get('TAGO_API_KEY')
 
 # KTX 역 코드 매핑 (실제 TAGO API 역 코드로 업데이트)
 KTX_STATION_CODES = {
@@ -1049,7 +1049,7 @@ def inject_global_vars():
         'app_version': '1.0.0'
     }
 
-API_KEY = 'TaVMa14CGsWYpQE9wR0j6ksJlGbaQ1mSGcnU+/45DrbL3tnDU8Tc0brtWZLfLJlZ8Rg7qLgImp5Y4JjkafzcAg=='  # URL-encoded 인증키 사용
+API_KEY = os.environ.get('API_KEY')  # URL-encoded 인증키 사용
 
 # 터미널 코드 로드
 with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:

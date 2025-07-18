@@ -14,4 +14,7 @@ class Config:
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
     AWS_REGION = os.environ.get('AWS_REGION', 'ap-northeast-2')
     S3_BUCKET = os.environ.get('S3_BUCKET')
-    DYNAMODB_TABLE = os.environ.get('DYNAMODB_TABLE', 'chat_data') 
+    DYNAMODB_TABLE = os.environ.get('DYNAMODB_TABLE', 'chat_data')
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+    TAGO_API_KEY = os.environ.get('TAGO_API_KEY')
+    API_KEY = os.environ.get('API_KEY') 
