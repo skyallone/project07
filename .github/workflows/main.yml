@@ -1,5 +1,5 @@
 # .github/workflows/main.yml
-name: 프로젝트
+name: 프로젝트 CI/CD 파이프라인
 
 on:
   push:
@@ -16,28 +16,16 @@ jobs:
     steps:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
-        # with:
-        #   path: project07 # <- 만약 checkout이 project07 폴더로 직접 했다면 이 줄은 필요 없음
 
-      - name: Node.js 설정
-        uses: actions/setup-node@v4
+      - name: Python 환경 설정
+        uses: actions/setup-python@v5
         with:
-          node-version: '18'
+          python-version: '3.12.3' # <-- 이 부분을 3.12.3으로 변경했습니다.
 
       - name: 의존성 설치
-        run: npm install
-        working-directory: ./project07 # <- 이 부분을 확인하세요!
-                                       # 만약 저장소 루트에 project07 폴더가 있고
-                                       # 그 안에 package.json이 있다면 이 경로는 맞을 수 있습니다.
-                                       # 하지만 에러 메시지에 '.../project07/./project07'이라고 떴으니
-                                       # 이미 project07 안으로 들어간 상태에서 또 project07을 찾으려 한 것입니다.
-                                       # 따라서, 대부분의 경우 이 줄을
-                                       # working-directory: .  <- 이렇게 바꾸거나 아예 삭제해야 합니다.
+        run: pip install -r requirements.txt
+        # working-directory: ./프로젝트_하위폴더_이름 # 필요하다면 주석 해제 후 경로 지정
 
-      - name: 프로젝트 빌드
-        run: npm run build
-        working-directory: ./project07 # <- 마찬가지로 수정
-
-      - name: 테스트 실행
-        run: npm test
-        working-directory: ./project07 # <- 마찬가지로 수정
+      - name: Flask 앱 테스트 실행
+        run: pytest
+        # working-directory: ./프로젝트_하위폴더_이름 # 필요하다면 주석 해제 후 경로 지정
