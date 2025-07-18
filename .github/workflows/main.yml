@@ -1,13 +1,13 @@
 # .github/workflows/main.yml
-name: 프로젝트
+name: 프로젝트 # 이 부분을 '프로젝트'로 변경합니다.
 
 on:
   push:
     branches:
-      - feature/data # 'feature/data' 브랜치에 푸시될 때만 실행
+      - main
   pull_request:
     branches:
-      - feature/data # 'feature/data' 브랜치로 풀 리퀘스트가 열릴 때만 실행
+      - main
 
 jobs:
   build-and-test:
