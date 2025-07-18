@@ -1,13 +1,8 @@
-
 name: Deploy to EKS
-
-
-
 
 on:
   push:
     branches:
-
       - main
 
 jobs:
@@ -43,14 +38,23 @@ jobs:
           docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
+      - name: Install aws-iam-authenticator
+        run: |
+          curl -Lo aws-iam-authenticator https://github.com/kubernetes-sigs/aws-iam-authenticator/releases/download/v0.6.14/aws-iam-authenticator_0.6.14_linux_amd64
+          chmod +x ./aws-iam-authenticator
+          sudo mv ./aws-iam-authenticator /usr/local/bin
+
       - name: Update Kubeconfig
         run: |
           aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME --role-arn $EKS_ROLE_ARN
 
-      - name: Test kubectl access
+      - name: Verify kubectl access
         run: |
-          kubectl auth can-i get pods
-          kubectl get namespaces    
+          echo "=== Testing kubectl access ==="
+          kubectl auth can-i get pods || echo "Pod access check failed"
+          kubectl get namespaces || echo "Namespace access failed"
+          echo "=== Current AWS Identity ==="
+          aws sts get-caller-identity
 
       - name: Set secrets for Kubernetes
         run: |
@@ -72,6 +76,11 @@ jobs:
           kubectl apply -f deployment.yaml
           kubectl apply -f service.yaml
 
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for deployment to be ready..."
+          kubectl rollout status deployment/flask-app --timeout=300s
+
       - name: Wait for LoadBalancer DNS
         id: wait-lb
         run: |
@@ -82,16 +91,29 @@ jobs:
               echo "LoadBalancer DNS: $LB_DNS"
               break
             fi
-            echo "Waiting for LoadBalancer DNS... ($i)"
+            echo "Waiting for LoadBalancer DNS... ($i/30)"
             sleep 10
           done
           if [ -z "$LB_DNS" ]; then
-            echo "LoadBalancer DNS not assigned!" >&2
+            echo "LoadBalancer DNS not assigned after 5 minutes!"
+            kubectl get svc flask-service -o yaml
             exit 1
           fi
 
       - name: Health check
         run: |
-          sleep 30  # 서비스가 완전히 뜰 때까지 추가 대기
-          python healthcheck.py http://$LB_DNS 
+          echo "Waiting for service to be fully ready..."
+          sleep 60  # 서비스가 완전히 뜰 때까지 추가 대기
+          echo "Running health check on http://$LB_DNS"
+          python healthcheck.py http://$LB_DNS
 
+      - name: Show deployment status
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "Application URL: http://$LB_DNS"
+          echo "=== Pods Status ==="
+          kubectl get pods -l app=flask-app
+          echo "=== Service Status ==="
+          kubectl get svc flask-service
+          echo "=== Deployment Status ==="
+          kubectl get deployment flask-app
