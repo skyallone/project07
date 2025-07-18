@@ -1,0 +1,85 @@
+name: Deploy to EKS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+      EKS_ROLE_ARN: ${{ secrets.EKS_ROLE_ARN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.EKS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image
+        run: |
+          docker build -t $ECR_REPOSITORY:latest .
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Kubeconfig
+        run: |
+          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+
+      - name: Set secrets for Kubernetes
+        run: |
+          kubectl delete secret flask-secrets --ignore-not-found
+          kubectl create secret generic flask-secrets \
+            --from-literal=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            --from-literal=TAGO_API_KEY="${{ secrets.TAGO_API_KEY }}" \
+            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
+            --from-literal=FLASK_SECRET_KEY="${{ secrets.FLASK_SECRET_KEY }}" \
+            --from-literal=MYSQL_URI="${{ secrets.MYSQL_URI }}" \
+            --from-literal=AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --from-literal=AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            --from-literal=AWS_REGION="${{ secrets.AWS_REGION }}" \
+            --from-literal=S3_BUCKET="${{ secrets.S3_BUCKET }}" \
+            --from-literal=DYNAMODB_TABLE="${{ secrets.DYNAMODB_TABLE }}"
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+
+      - name: Wait for LoadBalancer DNS
+        id: wait-lb
+        run: |
+          for i in {1..30}; do
+            LB_DNS=$(kubectl get svc flask-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            if [ -n "$LB_DNS" ]; then
+              echo "LB_DNS=$LB_DNS" >> $GITHUB_ENV
+              echo "LoadBalancer DNS: $LB_DNS"
+              break
+            fi
+            echo "Waiting for LoadBalancer DNS... ($i)"
+            sleep 10
+          done
+          if [ -z "$LB_DNS" ]; then
+            echo "LoadBalancer DNS not assigned!" >&2
+            exit 1
+          fi
+
+      - name: Health check
+        run: |
+          sleep 30  # 서비스가 완전히 뜰 때까지 추가 대기
+          python healthcheck.py http://$LB_DNS 
