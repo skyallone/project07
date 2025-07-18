@@ -1,13 +1,13 @@
 # .github/workflows/main.yml
-name: 프로젝트 # 이 부분을 '프로젝트'로 변경합니다.
+name: 프로젝트
 
 on:
   push:
     branches:
-      - main
+      - feature/data
   pull_request:
     branches:
-      - main
+      - feature/data
 
 jobs:
   build-and-test:
@@ -17,16 +17,19 @@ jobs:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: Node.js 설정 (만약 Node.js 프로젝트라면)
+      - name: Node.js 설정
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
       - name: 의존성 설치
         run: npm install
+        working-directory: ./project07 # <-- 이 줄을 추가합니다. 프로젝트 폴더가 'project07'이라면 이와 같이 설정하세요.
 
       - name: 프로젝트 빌드
         run: npm run build
+        working-directory: ./project07 # <-- 이 줄도 추가합니다.
 
       - name: 테스트 실행
         run: npm test
+        working-directory: ./project07 # <-- 이 줄도 추가합니다.
