@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}로그인 - AI 여행계획 사이트{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-header text-center">
+                <h3><i class="fas fa-sign-in-alt"></i> 로그인</h3>
+                <p class="text-white-50 mb-0">계정에 로그인하여 여행 계획을 시작하세요</p>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">
+                            <i class="fas fa-user"></i> 사용자명
+                        </label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <i class="fas fa-lock"></i> 비밀번호
+                        </label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="rememberMe">
+                        <label class="form-check-label" for="rememberMe">
+                            로그인 상태 유지
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 mb-3">
+                        <i class="fas fa-sign-in-alt"></i> 로그인
+                    </button>
+                </form>
+                
+                <div class="text-center">
+                    <p class="text-muted">계정이 없으신가요?</p>
+                    <a href="{{ url_for('register') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-user-plus"></i> 회원가입
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        margin-top: 50px;
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .card-header {
+        background: linear-gradient(45deg, #007bff, #0056b3);
+        color: white;
+        border-radius: 0.75rem 0.75rem 0 0 !important;
+        padding: 1.5rem;
+    }
+    
+    .card-header h3 {
+        margin: 0;
+        font-weight: 600;
+    }
+    
+    .card-header p {
+        margin: 5px 0 0 0;
+        opacity: 0.9;
+    }
+    
+    .form-control:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .btn-primary {
+        background: linear-gradient(45deg, #007bff, #0056b3);
+        border: none;
+        padding: 12px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
+    }
+    
+    .input-group-text {
+        background: #f8f9fa;
+        border-left: none;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 비밀번호 표시/숨김 토글
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passwordInput = document.getElementById('password');
+        const icon = this.querySelector('i');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    });
+    
+    // 폼 제출 시 로딩 처리
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const submitBtn = document.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 로그인 중...';
+        submitBtn.disabled = true;
+        
+        // 실제 환경에서는 서버 응답 후 처리되므로 타이머 제거
+    });
+</script>
+{% endblock %}
