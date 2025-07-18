@@ -24,11 +24,11 @@ jobs:
 
       - name: 의존성 설치
         run: pip install -r requirements.txt
-        working-directory: ./feature/flask # <-- 여기에 'feature/flask' 폴더를 지정합니다.
+        working-directory: ./feature/flask-ec2  # <-- 여기에 'feature/flask' 폴더를 지정합니다.
 
       - name: Flask 앱 테스트 실행
         run: pytest # 또는 python -m unittest discover 등 실제 테스트 명령어
-        working-directory: ./feature/flask # <-- 여기에 'feature/flask' 폴더를 지정합니다.
+        working-directory: ./feature/flask-ec2 # <-- 여기에 'feature/flask' 폴더를 지정합니다.
         # 참고: 만약 테스트 코드가 'feature/flask' 폴더 안에 'tests' 폴더로 분리되어 있고,
         # pytest가 자동으로 찾지 못한다면, 'run: pytest feature/flask/tests'와 같이
         # 테스트 명령어나 working-directory를 더 구체적으로 조정해야 할 수도 있습니다.
