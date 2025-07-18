@@ -4,31 +4,33 @@ name: 프로젝트 CI/CD 파이프라인
 on:
   push:
     branches:
-      - main # main 브랜치에 푸시될 때 실행
+      - main
   pull_request:
     branches:
-      - main # main 브랜치로 풀 리퀘스트가 열릴 때 실행
+      - main
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest # 최신 Ubuntu 환경에서 실행
+    runs-on: ubuntu-latest
 
     steps:
       - name: 코드 체크아웃
-        uses: actions/checkout@v4 # 저장소 코드 가져오기
-
-      # 디버깅을 위한 '현재 디렉토리 구조 확인' 단계는 이제 필요 없으므로 제거해도 됩니다.
-      # - name: 현재 디렉토리 구조 확인
-      #   run: ls -R
+        uses: actions/checkout@v4
 
       - name: Python 환경 설정
-        uses: actions/setup-python@v5 # Python 환경 설정
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12.3' # 사용하시는 Python 버전 지정
+          python-version: '3.12.3'
 
       - name: 의존성 설치
-        run: pip install -r requirements.txt # working-directory 줄을 모두 제거합니다.
+        run: pip install -r requirements.txt
+        # working-directory 줄은 이전 단계에서 제거했으므로 여기서는 사용하지 않습니다.
+
+      # 만약 위 '의존성 설치'에서 pytest가 설치되지 않는다면
+      # 아래 줄을 임시로 추가하여 pytest를 명시적으로 설치해 볼 수 있습니다.
+      # - name: Pytest 명시적 설치 (디버깅용)
+      #   run: pip install pytest
 
       - name: Flask 앱 테스트 실행
-        run: pytest # Flask 앱의 테스트를 실행하는 명령어 (pytest를 사용한다고 가정)
-        # working-directory 줄을 모두 제거합니다.
+        run: pytest # pytest가 PATH에 포함되어 있어 직접 실행됩니다.
+        # working-directory 줄은 사용하지 않습니다.
