@@ -1,36 +1,91 @@
-# .github/workflows/main.yml
-name: 프로젝트 CI/CD 파이프라인 # 워크플로의 이름입니다.
+
+name: Deploy to EKS
+
+
+
 
 on:
   push:
     branches:
-      - main # main 브랜치에 푸시될 때 실행
-  pull_request:
-    branches:
-      - main # main 브랜치로 풀 리퀘스트가 열릴 때 실행
+
+      - main
 
 jobs:
-  build-and-test: # 'build-and-test'라는 이름의 작업을 정의합니다.
-    runs-on: ubuntu-latest # 최신 Ubuntu 환경에서 실행됩니다.
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+      EKS_ROLE_ARN: ${{ secrets.EKS_ROLE_ARN }}
 
-    steps: # 이 작업 안에서 순서대로 실행될 단계들을 정의합니다.
-      - name: 코드 체크아웃 # GitHub 저장소의 코드를 가상 환경으로 가져옵니다.
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Python 환경 설정 # Python 환경을 설정합니다.
-        uses: actions/setup-python@v5
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          python-version: '3.12.3' # 사용하시는 Python 버전입니다.
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.EKS_ROLE_ARN }}
 
-      - name: 의존성 설치 # Flask 프로젝트에 필요한 라이브러리들을 설치합니다.
-        run: pip install -r requirements.txt
-        # working-directory: ./feature/flask-ec2 # <-- 이 줄을 삭제해야 합니다.
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Flask 앱 테스트 실행 # Flask 앱의 테스트 코드를 실행합니다.
-        run: pytest # pytest를 계속 사용하려면 유지, 아니라면 이 줄을 제거하거나 다른 명령어로 변경하세요.
-        # working-directory: ./feature/flask-ec2 # <-- 이 줄을 삭제해야 합니다.
+      - name: Build, tag, and push Docker image
+        run: |
+          docker build -t $ECR_REPOSITORY:latest .
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
+      - name: Update Kubeconfig
+        run: |
+          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
 
-      - name: Flask 앱 테스트 실행
-        run: pytest # pytest가 PATH에 포함되어 있어 직접 실행됩니다.
-        # working-directory 줄은 사용하지 않습니다.
+      - name: Set secrets for Kubernetes
+        run: |
+          kubectl delete secret flask-secrets --ignore-not-found
+          kubectl create secret generic flask-secrets \
+            --from-literal=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            --from-literal=TAGO_API_KEY="${{ secrets.TAGO_API_KEY }}" \
+            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
+            --from-literal=FLASK_SECRET_KEY="${{ secrets.FLASK_SECRET_KEY }}" \
+            --from-literal=MYSQL_URI="${{ secrets.MYSQL_URI }}" \
+            --from-literal=AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --from-literal=AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            --from-literal=AWS_REGION="${{ secrets.AWS_REGION }}" \
+            --from-literal=S3_BUCKET="${{ secrets.S3_BUCKET }}" \
+            --from-literal=DYNAMODB_TABLE="${{ secrets.DYNAMODB_TABLE }}"
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+
+      - name: Wait for LoadBalancer DNS
+        id: wait-lb
+        run: |
+          for i in {1..30}; do
+            LB_DNS=$(kubectl get svc flask-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            if [ -n "$LB_DNS" ]; then
+              echo "LB_DNS=$LB_DNS" >> $GITHUB_ENV
+              echo "LoadBalancer DNS: $LB_DNS"
+              break
+            fi
+            echo "Waiting for LoadBalancer DNS... ($i)"
+            sleep 10
+          done
+          if [ -z "$LB_DNS" ]; then
+            echo "LoadBalancer DNS not assigned!" >&2
+            exit 1
+          fi
+
+      - name: Health check
+        run: |
+          sleep 30  # 서비스가 완전히 뜰 때까지 추가 대기
+          python healthcheck.py http://$LB_DNS 
+
