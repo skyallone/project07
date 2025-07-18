@@ -1,8 +1,13 @@
+
 name: Deploy to EKS
+
+
+
 
 on:
   push:
     branches:
+
       - main
 
 jobs:
@@ -83,3 +88,4 @@ jobs:
         run: |
           sleep 30  # 서비스가 완전히 뜰 때까지 추가 대기
           python healthcheck.py http://$LB_DNS 
+
