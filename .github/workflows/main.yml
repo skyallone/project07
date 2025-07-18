@@ -1,0 +1,32 @@
+# .github/workflows/main.yml
+name: 프로젝트
+
+on:
+  push:
+    branches:
+      - feature/data # 'feature/data' 브랜치에 푸시될 때만 실행
+  pull_request:
+    branches:
+      - feature/data # 'feature/data' 브랜치로 풀 리퀘스트가 열릴 때만 실행
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설정 (만약 Node.js 프로젝트라면)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 의존성 설치
+        run: npm install
+
+      - name: 프로젝트 빌드
+        run: npm run build
+
+      - name: 테스트 실행
+        run: npm test
