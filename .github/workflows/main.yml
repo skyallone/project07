@@ -14,7 +14,7 @@ jobs:
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
       EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
       EKS_ROLE_ARN: ${{ secrets.EKS_ROLE_ARN }}
-      KARPENTER_VERSION: "0.37.0"  # 최신 버전으로 업데이트
+      KARPENTER_VERSION: "1.6.0"  # 최신 버전으로 업데이트
 
     steps:
       - name: Checkout code
@@ -80,12 +80,8 @@ jobs:
           # Karpenter 네임스페이스 생성
           kubectl create namespace karpenter || true
           
-          # Karpenter Helm 차트 추가
-          helm repo add karpenter https://charts.karpenter.sh/
-          helm repo update
-          
-          # Karpenter 설정에서 클러스터 이름 사용
-          helm install karpenter karpenter/karpenter \
+          # ECR public repository에서 Karpenter 설치 (v1.x 버전용)
+          helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
             --version $KARPENTER_VERSION \
             --namespace karpenter \
             --create-namespace \
