@@ -4,10 +4,10 @@ name: 프로젝트
 on:
   push:
     branches:
-      - feature/data
+      - main # 'main' 브랜치에 푸시될 때 실행
   pull_request:
     branches:
-      - feature/data
+      - main # 'main' 브랜치로 풀 리퀘스트가 열릴 때 실행
 
 jobs:
   build-and-test:
@@ -24,12 +24,12 @@ jobs:
 
       - name: 의존성 설치
         run: npm install
-        working-directory: ./project07 # <-- 이 줄을 추가합니다. 프로젝트 폴더가 'project07'이라면 이와 같이 설정하세요.
+        working-directory: ./project07 # <-- 이 경로가 정확한지 다시 확인!
 
       - name: 프로젝트 빌드
         run: npm run build
-        working-directory: ./project07 # <-- 이 줄도 추가합니다.
+        working-directory: ./project07 # <-- 이 경로가 정확한지 다시 확인!
 
       - name: 테스트 실행
         run: npm test
-        working-directory: ./project07 # <-- 이 줄도 추가합니다.
+        working-directory: ./project07 # <-- 이 경로가 정확한지 다시 확인!
