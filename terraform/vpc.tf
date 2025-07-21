@@ -56,8 +56,8 @@ resource "aws_internet_gateway" "gw" {
 }
 
 # NAT Gateways (one per AZ)
-resource "aws_eip" "nat_a" { vpc = true }
-resource "aws_eip" "nat_c" { vpc = true }
+resource "aws_eip" "nat_a" {}
+resource "aws_eip" "nat_c" {}
 resource "aws_nat_gateway" "a" {
   allocation_id = aws_eip.nat_a.id
   subnet_id     = aws_subnet.public_a.id
