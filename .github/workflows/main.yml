@@ -1,0 +1,324 @@
+name: Deploy to EKS with Karpenter
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve
+
+  deploy:
+    needs: terraform
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+      EKS_ROLE_ARN: ${{ secrets.EKS_ROLE_ARN }}
+      KARPENTER_VERSION: "1.6.0"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.EKS_ROLE_ARN }}
+          role-skip-session-tagging: true
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image
+        run: |
+          docker build -t project/flask:latest .
+          docker tag project/flask:latest 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:latest
+          docker push 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:latest
+
+      - name: Install aws-iam-authenticator
+        run: |
+          curl -Lo aws-iam-authenticator https://github.com/kubernetes-sigs/aws-iam-authenticator/releases/download/v0.6.14/aws-iam-authenticator_0.6.14_linux_amd64
+          chmod +x ./aws-iam-authenticator
+          sudo mv ./aws-iam-authenticator /usr/local/bin
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+              version: 'latest'
+  
+
+      # kubeconfig 완전 재설정
+      - name: Update Kubeconfig
+        run: |
+          echo "=== 클러스터 정보 확인 ==="
+          aws eks describe-cluster --region $AWS_REGION --name $EKS_CLUSTER_NAME --query 'cluster.{Name:name,Status:status,Endpoint:endpoint}'
+          
+          echo "=== 기존 kubeconfig 정리 ==="
+          rm -f ~/.kube/config
+          mkdir -p ~/.kube
+          
+          echo "=== 새로운 kubeconfig 생성 ==="
+          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME --verbose
+          
+          echo "=== kubeconfig 파일 권한 설정 ==="
+          chmod 600 ~/.kube/config
+          
+          echo "=== kubeconfig 내용 확인 ==="
+          kubectl config view --minify
+          
+          echo "=== 현재 컨텍스트 확인 ==="
+          kubectl config current-context
+          
+          echo "=== 엔드포인트 확인 ==="
+          kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+          echo
+
+      # 강화된 kubectl 접근 테스트
+      - name: Verify kubectl access
+        run: |
+          echo "=== Current AWS Identity ==="
+          aws sts get-caller-identity
+          
+          echo "=== kubectl 버전 확인 ==="
+          kubectl version --client
+          
+          echo "=== 클러스터 연결 테스트 ==="
+          kubectl cluster-info
+          
+          echo "=== 권한 테스트 ==="
+          kubectl auth can-i get pods --all-namespaces || echo "Pod access check failed"
+          kubectl auth can-i get namespaces || echo "Namespace access check failed"
+          kubectl auth can-i get nodes || echo "Node access check failed"
+          
+          echo "=== 네임스페이스 목록 ==="
+          kubectl get namespaces || echo "Failed to get namespaces"
+          
+          echo "=== 노드 목록 ==="
+          kubectl get nodes || echo "Failed to get nodes"
+
+      - name: Check if Karpenter is installed
+        id: check-karpenter
+        run: |
+          if kubectl get deployment karpenter -n karpenter 2>/dev/null; then
+            echo "karpenter_installed=true" >> $GITHUB_OUTPUT
+            echo "Karpenter is already installed"
+          else
+            echo "karpenter_installed=false" >> $GITHUB_OUTPUT
+            echo "Karpenter is not installed"
+          fi
+
+      - name: Install Karpenter (if not installed)
+        if: steps.check-karpenter.outputs.karpenter_installed == 'false'
+        run: |
+          echo "Installing Karpenter..."
+          
+          # Karpenter 네임스페이스 생성
+          kubectl create namespace karpenter || true
+          
+          # ECR public repository에서 Karpenter 설치 (v1.x 버전용)
+          helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+            --version $KARPENTER_VERSION \
+            --namespace karpenter \
+            --create-namespace \
+            --set "settings.clusterName=$EKS_CLUSTER_NAME" \
+            --set "settings.interruptionQueue=$EKS_CLUSTER_NAME" \
+            --set controller.resources.requests.cpu=1 \
+            --set controller.resources.requests.memory=1Gi \
+            --set controller.resources.limits.cpu=1 \
+            --set controller.resources.limits.memory=1Gi \
+            --wait \
+            --timeout 15m0s
+
+      # 개선된 NodePool 설정 (테인트 제거)
+      - name: Apply Karpenter NodePool configuration
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: karpenter.sh/v1beta1
+          kind: NodePool
+          metadata:
+            name: default
+          spec:
+            template:
+              metadata:
+                labels:
+                  karpenter.sh/nodepool: default
+              spec:
+                requirements:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["amd64"]
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: ["linux"]
+                  - key: karpenter.sh/capacity-type
+                    operator: In
+                    values: ["spot", "on-demand"]
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values: ["t3.medium", "t3.large", "t3.xlarge"]
+                
+                nodeClassRef:
+                  apiVersion: karpenter.k8s.aws/v1beta1
+                  kind: EC2NodeClass
+                  name: default
+                
+                # 테인트 제거 - 일반 워크로드가 스케줄될 수 있도록
+            
+            limits:
+              cpu: 1000
+              memory: 1000Gi
+            
+            disruption:
+              consolidationPolicy: WhenUnderutilized
+              consolidateAfter: 30s
+              expireAfter: 30m
+          EOF
+
+      - name: Apply Karpenter EC2NodeClass configuration
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: karpenter.k8s.aws/v1beta1
+          kind: EC2NodeClass
+          metadata:
+            name: default
+          spec:
+            amiFamily: AL2
+            
+            subnetSelectorTerms:
+              - tags:
+                  karpenter.sh/discovery: $EKS_CLUSTER_NAME
+            
+            securityGroupSelectorTerms:
+              - tags:
+                  karpenter.sh/discovery: $EKS_CLUSTER_NAME
+            
+            role: "KarpenterNodeInstanceProfile"
+            
+            userData: |
+              #!/bin/bash
+              /etc/eks/bootstrap.sh $EKS_CLUSTER_NAME
+              echo "Node bootstrapped successfully"
+            
+            blockDeviceMappings:
+              - deviceName: /dev/xvda
+                ebs:
+                  volumeSize: 20Gi
+                  volumeType: gp3
+                  encrypted: true
+                  deleteOnTermination: true
+            
+            tags:
+              Environment: production
+              Team: platform
+              Project: flask-app
+          EOF
+
+      - name: Set secrets for Kubernetes
+        run: |
+          kubectl delete secret flask-secrets --ignore-not-found
+          kubectl create secret generic flask-secrets \
+            --from-literal=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            --from-literal=TAGO_API_KEY="${{ secrets.TAGO_API_KEY }}" \
+            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
+            --from-literal=FLASK_SECRET_KEY="${{ secrets.FLASK_SECRET_KEY }}" \
+            --from-literal=MYSQL_URI="${{ secrets.MYSQL_URI }}" \
+            --from-literal=AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --from-literal=AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            --from-literal=AWS_REGION="${{ secrets.AWS_REGION }}" \
+            --from-literal=S3_BUCKET="${{ secrets.S3_BUCKET }}" \
+            --from-literal=DYNAMODB_TABLE="${{ secrets.DYNAMODB_TABLE }}"
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for deployment to be ready..."
+          kubectl rollout status deployment/flask-app --timeout=300s
+
+      - name: Check Karpenter node provisioning
+        run: |
+          echo "=== Karpenter Status ==="
+          kubectl get nodepool
+          kubectl get ec2nodeclass
+          kubectl get pods -n karpenter
+          echo "=== Node Status ==="
+          kubectl get nodes -L karpenter.sh/nodepool
+          echo "=== Pending Pods ==="
+          kubectl get pods --field-selector=status.phase=Pending
+
+      - name: Wait for LoadBalancer DNS
+        id: wait-lb
+        run: |
+          for i in {1..30}; do
+            LB_DNS=$(kubectl get svc flask-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            if [ -n "$LB_DNS" ]; then
+              echo "LB_DNS=$LB_DNS" >> $GITHUB_ENV
+              echo "LoadBalancer DNS: $LB_DNS"
+              break
+            fi
+            echo "Waiting for LoadBalancer DNS... ($i/30)"
+            sleep 10
+          done
+          if [ -z "$LB_DNS" ]; then
+            echo "LoadBalancer DNS not assigned after 5 minutes!"
+            kubectl get svc flask-service -o yaml
+            exit 1
+          fi
+
+      - name: Health check
+        run: |
+          echo "Waiting for service to be fully ready..."
+          sleep 60
+          echo "Running health check on http://$LB_DNS"
+          python healthcheck.py http://$LB_DNS
+
+      - name: Show deployment status
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "Application URL: http://$LB_DNS"
+          echo "=== Pods Status ==="
+          kubectl get pods -l app=flask-app
+          echo "=== Service Status ==="
+          kubectl get svc flask-service
+          echo "=== Deployment Status ==="
+          kubectl get deployment flask-app
+          echo "=== Karpenter Nodes ==="
+          kubectl get nodes -L karpenter.sh/nodepool,node.kubernetes.io/instance-type

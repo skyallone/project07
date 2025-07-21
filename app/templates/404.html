@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}페이지를 찾을 수 없습니다 - 404{% endblock %}
+
+{% block content %}
+<div class="container text-center">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="error-page">
+                <div class="error-icon">
+                    <i class="fas fa-map-marked-alt fa-6x text-primary mb-4"></i>
+                </div>
+                <h1 class="error-code">404</h1>
+                <h2 class="error-title">페이지를 찾을 수 없습니다</h2>
+                <p class="error-description">
+                    죄송합니다. 요청하신 페이지가 존재하지 않거나 이동되었을 수 있습니다.<br>
+                    URL을 다시 확인해주시거나 아래 링크를 이용해주세요.
+                </p>
+                
+                <div class="error-actions mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg me-3">
+                        <i class="fas fa-home"></i> 홈으로 돌아가기
+                    </a>
+                    <button onclick="history.back()" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-arrow-left"></i> 이전 페이지
+                    </button>
+                </div>
+                
+                <div class="quick-links mt-5">
+                    <h5>빠른 링크</h5>
+                    <div class="row mt-3">
+                        <div class="col-6 col-md-3 mb-3">
+                            <a href="{{ url_for('index') }}" class="quick-link">
+                                <i class="fas fa-search fa-2x"></i>
+                                <p>교통편 검색</p>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <a href="{{ url_for('chatbot') }}" class="quick-link">
+                                <i class="fas fa-robot fa-2x"></i>
+                                <p>AI 도우미</p>
+                            </a>
+                        </div>
+                        {% if current_user.is_authenticated %}
+                        <div class="col-6 col-md-3 mb-3">
+                            <a href="{{ url_for('mypage') }}" class="quick-link">
+                                <i class="fas fa-user fa-2x"></i>
+                                <p>마이페이지</p>
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="col-6 col-md-3 mb-3">
+                            <a href="{{ url_for('login') }}" class="quick-link">
+                                <i class="fas fa-sign-in-alt fa-2x"></i>
+                                <p>로그인</p>
+                            </a>
+                        </div>
+                        {% endif %}
+                        <div class="col-6 col-md-3 mb-3">
+                            <a href="mailto:support@aitravel.com" class="quick-link">
+                                <i class="fas fa-envelope fa-2x"></i>
+                                <p>문의하기</p>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-page {
+    padding: 3rem 0;
+}
+
+.error-code {
+    font-size: 8rem;
+    font-weight: bold;
+    color: #007bff;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    margin: 0;
+}
+
+.error-title {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.error-description {
+    color: #6c757d;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.quick-link {
+    display: block;
+    text-decoration: none;
+    color: #6c757d;
+    padding: 1rem;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.quick-link:hover {
+    color: #007bff;
+    background: #f8f9fa;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    text-decoration: none;
+}
+
+.quick-link i {
+    color: #007bff;
+    margin-bottom: 0.5rem;
+}
+
+.quick-link p {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.error-actions .btn {
+    min-width: 150px;
+}
+
+@media (max-width: 768px) {
+    .error-code {
+        font-size: 5rem;
+    }
+    
+    .error-actions .btn {
+        display: block;
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+    
+    .error-actions .me-3 {
+        margin-right: 0 !important;
+    }
+}
+
+/* 애니메이션 효과 */
+.error-icon {
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.error-page {
+    animation: fadeIn 1s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}
