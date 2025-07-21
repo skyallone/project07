@@ -106,12 +106,12 @@ jobs:
           
           # GitHub Actions 러너에서 ECR Public 이미지 다운로드 (퍼블릭 네트워크 사용)
           echo "Karpenter 이미지 다운로드 중..."
-          docker pull public.ecr.aws/karpenter/controller:v1.6.0
+          docker pull public.ecr.aws/karpenter/controller:v0.34.0
           
           # 기존 Flask ECR에 karpenter 태그로 저장
           echo "기존 ECR에 태그 및 푸시..."
-          docker tag public.ecr.aws/karpenter/controller:v1.6.0 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:karpenter-1.6.0
-          docker push 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:karpenter-1.6.0
+          docker tag public.ecr.aws/karpenter/controller:v0.34.0 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:karpenter-0.34.0
+          docker push 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask:karpenter-0.34.0
           
           echo "✅ Karpenter 이미지가 기존 ECR에 추가되었습니다!"
           
@@ -156,7 +156,7 @@ jobs:
             --set "serviceAccount.create=false" \
             --set "serviceAccount.name=karpenter" \
             --set controller.image.repository=574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask \
-            --set controller.image.tag=karpenter-1.6.0 \
+            --set controller.image.tag=karpenter-0.34.0 \
             --set controller.resources.requests.cpu=200m \
             --set controller.resources.requests.memory=200Mi \
             --set controller.resources.limits.cpu=400m \
