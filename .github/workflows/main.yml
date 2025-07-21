@@ -98,6 +98,11 @@ jobs:
           echo "=== 노드 목록 ==="
           kubectl get nodes || echo "Failed to get nodes"
 
+      - name: Setup Karpenter IAM
+        run: |
+          aws iam create-instance-profile --instance-profile-name KarpenterNodeInstanceProfile 2>/dev/null || true
+          aws iam add-role-to-instance-profile --instance-profile-name KarpenterNodeInstanceProfile --role-name project-node-group 2>/dev/null || true    
+
       - name: Check if Karpenter is installed
         id: check-karpenter
         run: |

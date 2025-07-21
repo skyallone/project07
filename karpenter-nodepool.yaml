@@ -50,17 +50,16 @@ metadata:
   name: default
 spec:
   # AMI 패밀리
-  amiFamily: AL2
+  amiFamily: AL2023
   
   # 서브넷 선택기 - 클러스터 이름으로 태그된 서브넷 선택
   subnetSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "your-cluster-name"  # 실제 클러스터 이름으로 변경
+    - id: subnet-05debc08a249d8c0d
+    - id: subnet-0005ba7fed0b87805  
   
   # 보안 그룹 선택기 - 클러스터 이름으로 태그된 보안 그룹 선택
   securityGroupSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "your-cluster-name"  # 실제 클러스터 이름으로 변경
+    - id: sg-0f6bacca39650f9e6  # 실제 클러스터 이름으로 변경
   
   # IAM 인스턴스 프로파일
   role: "KarpenterNodeInstanceProfile"
