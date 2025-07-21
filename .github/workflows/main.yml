@@ -98,127 +98,173 @@ jobs:
           echo "=== 노드 목록 ==="
           kubectl get nodes || echo "Failed to get nodes"
 
-      - name: Setup Karpenter IAM
+          - name: Setup Karpenter IAM
+          run: |
+            echo "=== Karpenter IAM 설정 ==="
+            aws iam create-instance-profile --instance-profile-name KarpenterNodeInstanceProfile 2>/dev/null || echo "Instance profile already exists"
+            aws iam add-role-to-instance-profile --instance-profile-name KarpenterNodeInstanceProfile --role-name project-node-group 2>/dev/null || echo "Role already added"
+            echo "Karpenter IAM 설정 완료"
+  
+      - name: Add Karpenter tags to resources
         run: |
-          aws iam create-instance-profile --instance-profile-name KarpenterNodeInstanceProfile 2>/dev/null || true
-          aws iam add-role-to-instance-profile --instance-profile-name KarpenterNodeInstanceProfile --role-name project-node-group 2>/dev/null || true    
-
+            echo "=== Karpenter 태그 추가 ==="
+            # 서브넷에 Karpenter 태그 추가
+            aws ec2 create-tags --resources subnet-05debc08a249d8c0d subnet-0005ba7fed0b87805 \
+              --tags Key=karpenter.sh/discovery,Value=$EKS_CLUSTER_NAME
+            
+            # 보안 그룹에 Karpenter 태그 추가  
+            aws ec2 create-tags --resources sg-0f6bacca39650f9e6 \
+              --tags Key=karpenter.sh/discovery,Value=$EKS_CLUSTER_NAME
+            
+            echo "태그 추가 완료"
+  
       - name: Check if Karpenter is installed
         id: check-karpenter
         run: |
-          if kubectl get deployment karpenter -n karpenter 2>/dev/null; then
-            echo "karpenter_installed=true" >> $GITHUB_OUTPUT
-            echo "Karpenter is already installed"
-          else
-            echo "karpenter_installed=false" >> $GITHUB_OUTPUT
-            echo "Karpenter is not installed"
-          fi
-
-      - name: Install Karpenter (if not installed)
+            if kubectl get deployment karpenter -n karpenter 2>/dev/null && kubectl get pods -n karpenter --field-selector=status.phase=Running 2>/dev/null | grep -q "2/2"; then
+              echo "karpenter_installed=true" >> $GITHUB_OUTPUT
+              echo "Karpenter is properly installed and running"
+            else
+              echo "karpenter_installed=false" >> $GITHUB_OUTPUT
+              echo "Karpenter is not properly installed"
+            fi
+  
+      - name: Clean and Install Karpenter
         if: steps.check-karpenter.outputs.karpenter_installed == 'false'
         run: |
-          echo "Installing Karpenter..."
-          
-          # Karpenter 네임스페이스 생성
-          kubectl create namespace karpenter || true
-          
-          # ECR public repository에서 Karpenter 설치 (v1.x 버전용)
-          helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
-            --version $KARPENTER_VERSION \
-            --namespace karpenter \
-            --create-namespace \
-            --set "settings.clusterName=$EKS_CLUSTER_NAME" \
-            --set "settings.interruptionQueue=$EKS_CLUSTER_NAME" \
-            --set controller.resources.requests.cpu=1 \
-            --set controller.resources.requests.memory=1Gi \
-            --set controller.resources.limits.cpu=1 \
-            --set controller.resources.limits.memory=1Gi \
-            --wait \
-            --timeout 15m0s
-
-      # 개선된 NodePool 설정 (테인트 제거)
+            echo "=== Karpenter 정리 및 설치 ==="
+            
+            # 기존 Karpenter 완전 삭제
+            helm uninstall karpenter -n karpenter 2>/dev/null || echo "No existing helm release"
+            kubectl delete namespace karpenter --ignore-not-found=true
+            
+            # 잠시 대기
+            sleep 30
+            
+            # 새로 설치
+            kubectl create namespace karpenter
+            
+            echo "=== Karpenter 설치 시작 ==="
+            helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+              --version $KARPENTER_VERSION \
+              --namespace karpenter \
+              --create-namespace \
+              --set "settings.clusterName=$EKS_CLUSTER_NAME" \
+              --set controller.resources.requests.cpu=500m \
+              --set controller.resources.requests.memory=512Mi \
+              --set controller.resources.limits.cpu=1 \
+              --set controller.resources.limits.memory=1Gi \
+              --wait \
+              --timeout 15m0s
+            
+            echo "=== Karpenter 설치 완료 ==="
+  
+      - name: Wait for Karpenter to be ready
+        run: |
+            echo "=== Karpenter 준비 상태 대기 ==="
+            
+            # Pod이 Ready 상태가 될 때까지 대기
+            kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=karpenter -n karpenter --timeout=300s
+            
+            # CRD 확인
+            for i in {1..10}; do
+              if kubectl get crd nodepools.karpenter.sh 2>/dev/null && kubectl get crd ec2nodeclasses.karpenter.k8s.aws 2>/dev/null; then
+                echo "Karpenter CRDs are ready!"
+                break
+              fi
+              echo "Waiting for CRDs... ($i/10)"
+              sleep 30
+            done
+            
+            # 최종 상태 확인
+            echo "=== Karpenter 상태 확인 ==="
+            kubectl get pods -n karpenter
+            kubectl get crd | grep karpenter
+  
       - name: Apply Karpenter NodePool configuration
         run: |
-          cat <<EOF | kubectl apply -f -
-          apiVersion: karpenter.sh/v1beta1
-          kind: NodePool
-          metadata:
-            name: default
-          spec:
-            template:
-              metadata:
-                labels:
-                  karpenter.sh/nodepool: default
-              spec:
-                requirements:
-                  - key: kubernetes.io/arch
-                    operator: In
-                    values: ["amd64"]
-                  - key: kubernetes.io/os
-                    operator: In
-                    values: ["linux"]
-                  - key: karpenter.sh/capacity-type
-                    operator: In
-                    values: ["spot", "on-demand"]
-                  - key: node.kubernetes.io/instance-type
-                    operator: In
-                    values: ["t3.medium", "t3.large", "t3.xlarge"]
-                
-                nodeClassRef:
-                  apiVersion: karpenter.k8s.aws/v1beta1
-                  kind: EC2NodeClass
-                  name: default
-                
-                # 테인트 제거 - 일반 워크로드가 스케줄될 수 있도록
-            
-            limits:
-              cpu: 1000
-              memory: 1000Gi
-            
-            disruption:
-              consolidationPolicy: WhenUnderutilized
-              consolidateAfter: 30s
-              expireAfter: 30m
-          EOF
-
+            echo "=== NodePool 적용 ==="
+            cat <<EOF | kubectl apply -f -
+            apiVersion: karpenter.sh/v1beta1
+            kind: NodePool
+            metadata:
+              name: default
+            spec:
+              template:
+                metadata:
+                  labels:
+                    karpenter.sh/nodepool: default
+                spec:
+                  requirements:
+                    - key: kubernetes.io/arch
+                      operator: In
+                      values: ["amd64"]
+                    - key: kubernetes.io/os
+                      operator: In
+                      values: ["linux"]
+                    - key: karpenter.sh/capacity-type
+                      operator: In
+                      values: ["spot", "on-demand"]
+                    - key: node.kubernetes.io/instance-type
+                      operator: In
+                      values: ["t3.medium", "t3.large", "t3.xlarge", "m5.large", "m5.xlarge"]
+                  
+                  nodeClassRef:
+                    apiVersion: karpenter.k8s.aws/v1beta1
+                    kind: EC2NodeClass
+                    name: default
+              
+              limits:
+                cpu: 1000
+                memory: 1000Gi
+              
+              disruption:
+                consolidationPolicy: WhenUnderutilized
+                consolidateAfter: 30s
+                expireAfter: 30m
+            EOF
+  
       - name: Apply Karpenter EC2NodeClass configuration
         run: |
-          cat <<EOF | kubectl apply -f -
-          apiVersion: karpenter.k8s.aws/v1beta1
-          kind: EC2NodeClass
-          metadata:
-            name: default
-          spec:
-            amiFamily: AL2
-            
-            subnetSelectorTerms:
-              - tags:
-                  karpenter.sh/discovery: $EKS_CLUSTER_NAME
-            
-            securityGroupSelectorTerms:
-              - tags:
-                  karpenter.sh/discovery: $EKS_CLUSTER_NAME
-            
-            role: "KarpenterNodeInstanceProfile"
-            
-            userData: |
-              #!/bin/bash
-              /etc/eks/bootstrap.sh $EKS_CLUSTER_NAME
-              echo "Node bootstrapped successfully"
-            
-            blockDeviceMappings:
-              - deviceName: /dev/xvda
-                ebs:
-                  volumeSize: 20Gi
-                  volumeType: gp3
-                  encrypted: true
-                  deleteOnTermination: true
-            
-            tags:
-              Environment: production
-              Team: platform
-              Project: flask-app
-          EOF
+            echo "=== EC2NodeClass 적용 ==="
+            cat <<EOF | kubectl apply -f -
+            apiVersion: karpenter.k8s.aws/v1beta1
+            kind: EC2NodeClass
+            metadata:
+              name: default
+            spec:
+              amiFamily: AL2023
+              
+              # 실제 서브넷 ID 직접 지정
+              subnetSelectorTerms:
+                - id: subnet-05debc08a249d8c0d
+                - id: subnet-0005ba7fed0b87805
+              
+              # 실제 보안 그룹 ID 직접 지정
+              securityGroupSelectorTerms:
+                - id: sg-0f6bacca39650f9e6
+              
+              role: "KarpenterNodeInstanceProfile"
+              
+              userData: |
+                #!/bin/bash
+                /etc/eks/bootstrap.sh $EKS_CLUSTER_NAME
+                echo "Node bootstrapped successfully"
+              
+              blockDeviceMappings:
+                - deviceName: /dev/xvda
+                  ebs:
+                    volumeSize: 20Gi
+                    volumeType: gp3
+                    encrypted: true
+                    deleteOnTermination: true
+              
+              tags:
+                Environment: production
+                Team: platform
+                Project: flask-app
+                karpenter.sh/discovery: $EKS_CLUSTER_NAME
+            EOF
 
       - name: Set secrets for Kubernetes
         run: |
