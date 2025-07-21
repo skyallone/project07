@@ -41,25 +41,13 @@ cd ../terraform
 terraform init
 terraform apply
 ```
-- VPC, EKS, ALB, Karpenter, ECR, S3 등 인프라가 자동 생성됩니다.
+- VPC, EKS, ALB, ECR, S3 등 인프라가 자동 생성됩니다.
 - terraform apply 후, 출력되는 EKS 정보/ALB 주소/ECR URI 등을 확인하세요.
 
-### 2) (수동) Karpenter Helm 설치
-Terraform은 Karpenter용 IAM, SQS 등 리소스만 생성합니다. 실제 Karpenter 컨트롤러는 Helm으로 직접 설치해야 합니다.
-```bash
-# kubeconfig 세팅 (terraform output 참고)
-aws eks update-kubeconfig --region <REGION> --name <CLUSTER_NAME>
-
-# Karpenter Helm 설치
-helm repo add karpenter https://charts.karpenter.sh
-helm repo update
-helm install karpenter karpenter/karpenter \
-  --namespace karpenter --create-namespace \
-  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=<KARPENTER_IAM_ROLE_ARN> \
-  --set clusterName=<CLUSTER_NAME> \
-  --set clusterEndpoint=<EKS_ENDPOINT> \
-  --set aws.defaultInstanceProfile=<INSTANCE_PROFILE_NAME>
-```
+### 2) (수동) Helm 등 추가 리소스 설치
+# (예시) Helm 리소스 설치
+# helm repo add ...
+# helm install ...
 - 위 값들은 terraform output 또는 AWS 콘솔에서 확인
 
 ### 3) (수동) ECR에 Docker 이미지 빌드/푸시
@@ -77,7 +65,6 @@ export IMAGE_TAG=latest
 ```bash
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
-kubectl apply -f karpenter-nodepool.yaml # Karpenter 노드풀 생성
 kubectl apply -f ingress.yaml            # ALB Ingress 생성
 ```
 - ingress.yaml을 통해 ALB가 외부 트래픽을 서비스로 연결
@@ -89,7 +76,6 @@ kubectl apply -f ingress.yaml            # ALB Ingress 생성
 ---
 
 ## 7. 직접 해야 하는 주요 작업
-- Karpenter Helm 설치 (수동)
 - ECR 빌드/푸시 (push_ecr.sh 사용)
 - Ingress 리소스 배포 (ingress.yaml)
 - 환경변수/시크릿 관리 (ConfigMap/Secret)
@@ -99,5 +85,5 @@ kubectl apply -f ingress.yaml            # ALB Ingress 생성
 
 ## 8. 참고
 - ALB Ingress Controller가 설치되어 있어야 ingress.yaml이 정상 동작합니다.
-- Karpenter, ALB, ECR 등은 terraform output 또는 AWS 콘솔에서 정보 확인
+- ALB, ECR 등은 terraform output 또는 AWS 콘솔에서 정보 확인
 - 문제 발생 시 terraform output, kubectl logs, AWS 콘솔 참고 
