@@ -15,21 +15,21 @@ output "alb_dns_name" {
 }
 
 output "s3_bucket_name" {
-  value = aws_s3_bucket.project.bucket
+  value = aws_s3_bucket.project07.bucket
 }
 
 output "ecr_repository_url" {
-  value = aws_ecr_repository.project.repository_url
+  value = aws_ecr_repository.project07.repository_url
 }
 
 output "ecr_registry" {
   description = "ECR registry URL (host part only)"
-  value       = regex("^(.*)/.*$", aws_ecr_repository.project.repository_url)[0]
+  value       = regex("^(.*)/.*$", aws_ecr_repository.project07.repository_url)[0]
 }
 
 output "ecr_repository" {
   description = "ECR repository name"
-  value       = aws_ecr_repository.project.name
+  value       = aws_ecr_repository.project07.name
 }
 
 output "eks_role_arn" {
@@ -39,7 +39,7 @@ output "eks_role_arn" {
 
 output "s3_bucket" {
   description = "S3 bucket name"
-  value       = aws_s3_bucket.project.bucket
+  value       = aws_s3_bucket.project07.bucket
 }
 
 output "public_subnet_ids" {
