@@ -98,8 +98,8 @@ jobs:
           echo "=== 노드 목록 ==="
           kubectl get nodes || echo "Failed to get nodes"
 
-          - name: Setup Karpenter IAM
-          run: |
+      - name: Setup Karpenter IAM
+        run: |
             echo "=== Karpenter IAM 설정 ==="
             aws iam create-instance-profile --instance-profile-name KarpenterNodeInstanceProfile 2>/dev/null || echo "Instance profile already exists"
             aws iam add-role-to-instance-profile --instance-profile-name KarpenterNodeInstanceProfile --role-name project-node-group 2>/dev/null || echo "Role already added"
