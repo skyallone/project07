@@ -53,7 +53,7 @@ jobs:
       # kubeconfig 완전 재설정
       - name: Update Kubeconfig
         run: |
-          echo "=== 클러스터 정보 확인 ==="
+          echo "==== 클러스터 정보 확인 ===="
           aws eks describe-cluster --region $AWS_REGION --name $EKS_CLUSTER_NAME --query 'cluster.{Name:name,Status:status,Endpoint:endpoint}'
           
           echo "=== 기존 kubeconfig 정리 ==="
