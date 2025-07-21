@@ -99,88 +99,241 @@ jobs:
           echo "=== 노드 목록 ==="
           kubectl get nodes || echo "Failed to get nodes"
 
-      - name: Setup Karpenter IAM
+# 1단계: OIDC 제공자 및 IAM 설정 확인/생성
+      - name: Setup OIDC and Karpenter IAM
         run: |
-            echo "=== Karpenter IAM 설정 ==="
-            aws iam create-instance-profile --instance-profile-name KarpenterNodeInstanceProfile 2>/dev/null || echo "Instance profile already exists"
-            aws iam add-role-to-instance-profile --instance-profile-name KarpenterNodeInstanceProfile --role-name project-node-group 2>/dev/null || echo "Role already added"
-            echo "Karpenter IAM 설정 완료"
-  
-      - name: Add Karpenter tags to resources
+          echo "=== OIDC 및 Karpenter IAM 설정 ==="
+          
+          # OIDC 제공자 정보 가져오기
+          OIDC_URL=$(aws eks describe-cluster --region $AWS_REGION --name $EKS_CLUSTER_NAME --query 'cluster.identity.oidc.issuer' --output text)
+          OIDC_ID=$(echo $OIDC_URL | sed 's|https://||' | cut -d '.' -f 1)
+          
+          echo "OIDC URL: $OIDC_URL"
+          echo "OIDC ID: $OIDC_ID"
+          
+          # Karpenter 컨트롤러용 IAM 역할 생성
+          cat <<EOF > karpenter-trust-policy.json
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Federated": "arn:aws:iam::574205320701:oidc-provider/oidc.eks.ap-northeast-2.amazonaws.com/id/$OIDC_ID"
+                },
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {
+                  "StringEquals": {
+                    "oidc.eks.ap-northeast-2.amazonaws.com/id/$OIDC_ID:sub": "system:serviceaccount:karpenter:karpenter",
+                    "oidc.eks.ap-northeast-2.amazonaws.com/id/$OIDC_ID:aud": "sts.amazonaws.com"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+          
+          # Karpenter 컨트롤러 역할 생성
+          aws iam create-role \
+            --role-name KarpenterControllerRole \
+            --assume-role-policy-document file://karpenter-trust-policy.json \
+            --description "IAM role for Karpenter controller" 2>/dev/null || echo "Role already exists"
+          
+          # Karpenter 정책 생성
+          cat <<EOF > karpenter-controller-policy.json
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "ec2:CreateLaunchTemplate",
+                  "ec2:CreateTags",
+                  "ec2:DescribeAvailabilityZones",
+                  "ec2:DescribeImages",
+                  "ec2:DescribeInstances",
+                  "ec2:DescribeInstanceTypeOfferings",
+                  "ec2:DescribeInstanceTypes",
+                  "ec2:DescribeLaunchTemplates",
+                  "ec2:DescribeSecurityGroups",
+                  "ec2:DescribeSpotPriceHistory",
+                  "ec2:DescribeSubnets",
+                  "ec2:DeleteLaunchTemplate",
+                  "ec2:RunInstances",
+                  "ec2:TerminateInstances",
+                  "iam:PassRole",
+                  "eks:DescribeCluster",
+                  "iam:CreateInstanceProfile",
+                  "iam:DeleteInstanceProfile",
+                  "iam:GetInstanceProfile",
+                  "iam:AddRoleToInstanceProfile",
+                  "iam:RemoveRoleFromInstanceProfile"
+                ],
+                "Resource": "*"
+              }
+            ]
+          }
+          EOF
+          
+          aws iam put-role-policy \
+            --role-name KarpenterControllerRole \
+            --policy-name KarpenterControllerPolicy \
+            --policy-document file://karpenter-controller-policy.json
+          
+          # 노드 인스턴스 프로파일 생성
+          aws iam create-instance-profile --instance-profile-name KarpenterNodeInstanceProfile 2>/dev/null || echo "Instance profile already exists"
+          aws iam add-role-to-instance-profile --instance-profile-name KarpenterNodeInstanceProfile --role-name project-node-group 2>/dev/null || echo "Role already added"
+
+      # 2단계: Karpenter 네임스페이스 및 ServiceAccount 생성
+      - name: Create Karpenter namespace and ServiceAccount
         run: |
-            echo "=== Karpenter 태그 추가 ==="
-            # 서브넷에 Karpenter 태그 추가
-            aws ec2 create-tags --resources subnet-05debc08a249d8c0d subnet-0005ba7fed0b87805 \
-              --tags Key=karpenter.sh/discovery,Value=$EKS_CLUSTER_NAME
+          echo "=== Karpenter 네임스페이스 및 ServiceAccount 생성 ==="
+          
+          # 기존 정리
+          helm uninstall karpenter -n karpenter 2>/dev/null || echo "No existing release"
+          kubectl delete namespace karpenter --ignore-not-found=true
+          sleep 30
+          
+          # 네임스페이스 생성
+          kubectl create namespace karpenter
+          
+          # ServiceAccount 생성 (IAM 역할 어노테이션 포함)
+          cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: karpenter
+            namespace: karpenter
+            annotations:
+              eks.amazonaws.com/role-arn: arn:aws:iam::574205320701:role/KarpenterControllerRole
+          EOF
+
+      # 3단계: Karpenter 설치 (단계별)
+      - name: Install Karpenter step by step
+        run: |
+          echo "=== Karpenter 단계별 설치 ==="
+          
+          # 1단계: --wait 없이 설치
+          echo "1단계: Helm 차트 설치..."
+          helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+            --version $KARPENTER_VERSION \
+            --namespace karpenter \
+            --set "settings.clusterName=$EKS_CLUSTER_NAME" \
+            --set "settings.clusterEndpoint=$(aws eks describe-cluster --region $AWS_REGION --name $EKS_CLUSTER_NAME --query 'cluster.endpoint' --output text)" \
+            --set "serviceAccount.create=false" \
+            --set "serviceAccount.name=karpenter" \
+            --set controller.resources.requests.cpu=200m \
+            --set controller.resources.requests.memory=200Mi \
+            --set controller.resources.limits.cpu=400m \
+            --set controller.resources.limits.memory=400Mi \
+            --set controller.replicas=1 \
+            --timeout 5m0s
+          
+          echo "2단계: 설치 확인..."
+          sleep 30
+          kubectl get pods -n karpenter
+          
+          echo "3단계: Pod 로그 확인..."
+          kubectl logs -n karpenter deployment/karpenter --tail=20 || echo "로그 확인 실패"
+
+      # 4단계: Karpenter 상태 진단 및 대기
+      - name: Diagnose and wait for Karpenter
+        run: |
+          echo "=== Karpenter 상태 진단 ==="
+          
+          # Pod 상태 확인
+          for i in {1..10}; do
+            echo "시도 $i/10..."
+            kubectl get pods -n karpenter -o wide
             
-            # 보안 그룹에 Karpenter 태그 추가  
-            aws ec2 create-tags --resources sg-0f6bacca39650f9e6 \
-              --tags Key=karpenter.sh/discovery,Value=$EKS_CLUSTER_NAME
-            
-            echo "태그 추가 완료"
-  
-      - name: Check if Karpenter is installed
-        id: check-karpenter
-        run: |
-            if kubectl get deployment karpenter -n karpenter 2>/dev/null && kubectl get pods -n karpenter --field-selector=status.phase=Running 2>/dev/null | grep -q "2/2"; then
-              echo "karpenter_installed=true" >> $GITHUB_OUTPUT
-              echo "Karpenter is properly installed and running"
-            else
-              echo "karpenter_installed=false" >> $GITHUB_OUTPUT
-              echo "Karpenter is not properly installed"
+            # Pod이 Running 상태인지 확인
+            if kubectl get pods -n karpenter --field-selector=status.phase=Running | grep -q "Running"; then
+              echo "✅ Karpenter Pod이 Running 상태입니다!"
+              break
             fi
-  
-      - name: Clean and Install Karpenter
-        if: steps.check-karpenter.outputs.karpenter_installed == 'false'
-        run: |
-            echo "=== Karpenter 정리 및 설치 ==="
             
-            # 기존 Karpenter 완전 삭제
-            helm uninstall karpenter -n karpenter 2>/dev/null || echo "No existing helm release"
-            kubectl delete namespace karpenter --ignore-not-found=true
+            # Pod 상태가 이상하면 로그 확인
+            echo "Pod 상태 확인 중..."
+            kubectl describe pods -n karpenter | grep -A 10 "Events:" || echo "이벤트 없음"
             
-            # 잠시 대기
             sleep 30
-            
-            # 새로 설치
-            kubectl create namespace karpenter
-            
-            echo "=== Karpenter 설치 시작 ==="
-            helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
-              --version $KARPENTER_VERSION \
-              --namespace karpenter \
-              --create-namespace \
-              --set "settings.clusterName=$EKS_CLUSTER_NAME" \
-              --set controller.resources.requests.cpu=500m \
-              --set controller.resources.requests.memory=512Mi \
-              --set controller.resources.limits.cpu=1 \
-              --set controller.resources.limits.memory=1Gi \
-              --wait \
-              --timeout 15m0s
-            
-            echo "=== Karpenter 설치 완료 ==="
-  
-      - name: Wait for Karpenter to be ready
+          done
+          
+          # 최종 상태 확인
+          echo "=== 최종 상태 ==="
+          kubectl get pods -n karpenter
+          kubectl get serviceaccounts -n karpenter
+          kubectl logs -n karpenter deployment/karpenter --tail=50 || echo "로그 없음"
+
+      # 5단계: CRD 확인 및 생성
+      - name: Verify and create Karpenter CRDs
         run: |
-            echo "=== Karpenter 준비 상태 대기 ==="
+          echo "=== Karpenter CRD 확인 ==="
+          
+          # CRD 존재 확인
+          for i in {1..15}; do
+            echo "CRD 확인 시도 $i/15..."
             
-            # Pod이 Ready 상태가 될 때까지 대기
-            kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=karpenter -n karpenter --timeout=300s
+            if kubectl get crd nodepools.karpenter.sh 2>/dev/null && kubectl get crd ec2nodeclasses.karpenter.k8s.aws 2>/dev/null; then
+              echo "✅ 모든 Karpenter CRD가 준비되었습니다!"
+              kubectl get crd | grep karpenter
+              break
+            fi
             
-            # CRD 확인
-            for i in {1..10}; do
-              if kubectl get crd nodepools.karpenter.sh 2>/dev/null && kubectl get crd ec2nodeclasses.karpenter.k8s.aws 2>/dev/null; then
-                echo "Karpenter CRDs are ready!"
-                break
-              fi
-              echo "Waiting for CRDs... ($i/10)"
-              sleep 30
-            done
+            echo "CRD 대기 중..."
+            sleep 20
+          done
+          
+          # CRD가 없으면 수동 생성 시도
+          if ! kubectl get crd nodepools.karpenter.sh 2>/dev/null; then
+            echo "❌ CRD가 생성되지 않았습니다. Karpenter Pod 재시작..."
+            kubectl rollout restart deployment/karpenter -n karpenter
+            sleep 60
+            kubectl get crd | grep karpenter || echo "CRD 여전히 없음"
+          fi
+
+      # 6단계: 강제로 Karpenter 활성화
+      - name: Force Karpenter activation
+        run: |
+          echo "=== Karpenter 강제 활성화 ==="
+          
+          # Karpenter Pod가 정상인지 최종 확인
+          POD_STATUS=$(kubectl get pods -n karpenter --no-headers | awk '{print $3}')
+          echo "현재 Pod 상태: $POD_STATUS"
+          
+          if [[ "$POD_STATUS" != "Running" ]]; then
+            echo "Pod이 Running 상태가 아닙니다. 문제 해결 시도..."
             
-            # 최종 상태 확인
-            echo "=== Karpenter 상태 확인 ==="
-            kubectl get pods -n karpenter
-            kubectl get crd | grep karpenter
+            # ServiceAccount 재생성
+            kubectl delete serviceaccount karpenter -n karpenter --ignore-not-found=true
+            cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: karpenter
+            namespace: karpenter
+            annotations:
+              eks.amazonaws.com/role-arn: arn:aws:iam::574205320701:role/KarpenterControllerRole
+          EOF
+            
+            # Deployment 재시작
+            kubectl rollout restart deployment/karpenter -n karpenter
+            sleep 60
+          fi
+          
+          # 최종 상태
+          echo "=== 최종 Karpenter 상태 ==="
+          kubectl get pods -n karpenter
+          kubectl get crd | grep karpenter
+          
+          # 환경 변수 설정
+          if kubectl get pods -n karpenter --field-selector=status.phase=Running | grep -q "Running" && kubectl get crd nodepools.karpenter.sh 2>/dev/null; then
+            echo "KARPENTER_READY=true" >> $GITHUB_ENV
+            echo "✅ Karpenter 설치 성공!"
+          else
+            echo "KARPENTER_READY=false" >> $GITHUB_ENV
+            echo "❌ Karpenter 설치 실패"
+          fi
   
       - name: Apply Karpenter NodePool configuration
         run: |
