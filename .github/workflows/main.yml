@@ -157,6 +157,7 @@ jobs:
             --set "serviceAccount.name=karpenter" \
             --set controller.image.repository=574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project/flask \
             --set controller.image.tag=karpenter-0.34.0 \
+            --set controller.image.digest=sha256:4263bb55b891c19896e1f6d70a993d242a465be01bebaa743199c26c3803d41b \
             --set controller.resources.requests.cpu=200m \
             --set controller.resources.requests.memory=200Mi \
             --set controller.resources.limits.cpu=400m \
