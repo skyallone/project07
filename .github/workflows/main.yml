@@ -47,6 +47,8 @@ jobs:
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
       EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
       EKS_ROLE_ARN: ${{ secrets.EKS_ROLE_ARN }}
+      S3_BUCKET: project-terraform25
+      DYNAMODB_TABLE: terraform
      
 
     steps:
