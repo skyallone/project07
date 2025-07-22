@@ -11,7 +11,7 @@
 - ALB DNS: alb_dns_name
 - S3 버킷 이름: s3_bucket_name
 - ECR URL: ecr_repository_url
-- Karpenter 인스턴스 프로파일 ARN: karpenter_instance_profile_arn
+
 
 ## GitHub Actions CI/CD
 - .github/workflows/terraform.yml 파일을 생성하여 CI/CD 자동화
