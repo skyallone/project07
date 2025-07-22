@@ -73,11 +73,7 @@ jobs:
 
       - name: Fix aws-auth ConfigMap
         run: |
-          # Get the actual role ARN being used
-          ACTUAL_ROLE_ARN=$(aws sts get-caller-identity --query Arn --output text | sed 's/:sts:/:iam:/' | sed 's/:assumed-role\//:role\//' | sed 's/\/[^\/]*$//')
-          echo "Actual Role ARN: $ACTUAL_ROLE_ARN"
-          
-          kubectl patch configmap aws-auth -n kube-system --patch="
+          kubectl patch configmap aws-auth -n kube-system --patch='
           data:
             mapRoles: |-
               - groups:
@@ -87,13 +83,13 @@ jobs:
                 username: system:node:{{EC2PrivateDNSName}}
               - groups:
                 - system:masters
-                rolearn: $ACTUAL_ROLE_ARN
-                username: github-actions
+                rolearn: arn:aws:iam::574205320701:role/project-eks-cluster-role
+                username: github-actions-cluster
               - groups:
                 - system:masters
-                rolearn: arn:aws:iam::574205320701:role/project-eks-cluster-role
-                username: github-actions-fallback
-          "
+                rolearn: arn:aws:iam::574205320701:role/project-eks
+                username: github-actions
+          '
 
       - name: Wait for nodes to be ready
         run: |
