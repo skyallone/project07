@@ -73,5 +73,5 @@ output "rds_password" {
 }
 
 output "rds_db_name" {
-  value = aws_db_instance.mysql.name
+  value = "project"
 } 
