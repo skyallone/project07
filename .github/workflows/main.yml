@@ -37,3 +37,35 @@ jobs:
         working-directory: ./terraform
         run: terraform apply -auto-approve
 
+      - name: Get Terraform Outputs
+        id: tf_outputs
+        working-directory: ./terraform
+        run: |
+          echo "RDS_ENDPOINT=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
+          echo "RDS_USERNAME=$(terraform output -raw rds_username)" >> $GITHUB_ENV
+          echo "RDS_PASSWORD=$(terraform output -raw rds_password)" >> $GITHUB_ENV
+          echo "RDS_DB_NAME=$(terraform output -raw rds_db_name)" >> $GITHUB_ENV
+          echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
+          echo "DYNAMODB_TABLE=$(terraform output -raw dynamodb_table)" >> $GITHUB_ENV
+          echo "ECR_REGISTRY=$(terraform output -raw ecr_registry)" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=$(terraform output -raw ecr_repository)" >> $GITHUB_ENV
+          echo "EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
+          echo "EKS_ROLE_ARN=$(terraform output -raw eks_role_arn)" >> $GITHUB_ENV
+
+      - name: Compose MYSQL_URI
+        id: compose_uri
+        run: |
+          echo "MYSQL_URI=mysql+pymysql://${RDS_USERNAME}:${RDS_PASSWORD}@${RDS_ENDPOINT}:3306/${RDS_DB_NAME}" >> $GITHUB_ENV
+
+      - name: Set Terraform Outputs as GitHub Secrets
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN }}
+        run: |
+          gh secret set MYSQL_URI --body "$MYSQL_URI"
+          gh secret set S3_BUCKET --body "$S3_BUCKET"
+          gh secret set DYNAMODB_TABLE --body "$DYNAMODB_TABLE"
+          gh secret set ECR_REGISTRY --body "$ECR_REGISTRY"
+          gh secret set ECR_REPOSITORY --body "$ECR_REPOSITORY"
+          gh secret set EKS_CLUSTER_NAME --body "$EKS_CLUSTER_NAME"
+          gh secret set EKS_ROLE_ARN --body "$EKS_ROLE_ARN"
+
