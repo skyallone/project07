@@ -8,12 +8,6 @@ resource "aws_security_group" "rds" {
   description = "Allow MySQL from EKS nodes"
   vpc_id      = aws_vpc.main.id
 
-  ingress {
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    security_groups = [aws_security_group.eks_node.id]
-  }
   egress {
     from_port   = 0
     to_port     = 0
@@ -27,6 +21,17 @@ resource "aws_db_subnet_group" "rds" {
   name       = "project-rds-subnet-group"
   subnet_ids = [aws_subnet.private_rds_a.id, aws_subnet.private_rds_c.id]
   tags = { Name = "project-rds-subnet-group" }
+}
+
+# EKS 노드 SG에서 RDS로 3306 포트 인바운드 허용
+resource "aws_security_group_rule" "rds_from_eks_node" {
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.eks_node.id
+  description              = "Allow EKS nodes to access RDS on port 3306"
 }
 
 resource "aws_db_instance" "mysql" {

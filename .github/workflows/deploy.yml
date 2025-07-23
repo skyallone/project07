@@ -2,6 +2,7 @@ name: Deploy to EKS
 
 on:
   push:
+    branches: [main]
     paths:
       - 'app/**'
       - 'app/Dockerfile'
@@ -62,7 +63,7 @@ jobs:
 
       - name: Update Kubeconfig
         run: |
-          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME 
+          aws eks update-kubeconfig --region ap-northeast-2 --name projectflask 
 
       - name: Debug AWS Identity
         run: |
