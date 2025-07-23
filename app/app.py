@@ -63,10 +63,12 @@ chat_table = dynamodb.Table(Config.DYNAMODB_TABLE)
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# S3 이미지 URL 생성 함수도 고정값 사용
+# S3 이미지 URL 생성 함수 - 환경변수에서 버킷 이름 가져오기
 import urllib.parse
 def get_s3_image_url(filename):
-    return f"https://project-trip-pic.s3.ap-northeast-2.amazonaws.com/{urllib.parse.quote(filename)}"
+    s3_bucket = os.environ.get('S3_BUCKET', 'project-trip-pic')  # 기본값으로 fallback
+    aws_region = os.environ.get('AWS_REGION', 'ap-northeast-2')
+    return f"https://{s3_bucket}.s3.{aws_region}.amazonaws.com/{urllib.parse.quote(filename)}"
 
 @app.context_processor
 def inject_global_vars():
@@ -1266,14 +1268,14 @@ def test_tago_api():
 def index():
     s3 = boto3.client(
         's3',
-        region_name='ap-northeast-2',
+        region_name=os.environ.get('AWS_REGION', 'ap-northeast-2'),
         aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
         aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
     )
-    bucket = 'project-trip-pic'
+    bucket = os.environ.get('S3_BUCKET', 'project-trip-pic')
     prefix = 'backgrounds/'
     print("[DEBUG] S3_BUCKET:", bucket)
-    print("[DEBUG] AWS_REGION:", 'ap-northeast-2')
+    print("[DEBUG] AWS_REGION:", os.environ.get('AWS_REGION', 'ap-northeast-2'))
     response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
     bg_images = []
     for obj in response.get('Contents', []):
@@ -1287,7 +1289,8 @@ def index():
         bg_image = random.choice(bg_images)
         print("[DEBUG] bg_image (random):", bg_image)
         from urllib.parse import quote
-        s3_url = f"https://{bucket}.s3.ap-northeast-2.amazonaws.com/{quote(bg_image)}"
+        aws_region = os.environ.get('AWS_REGION', 'ap-northeast-2')
+        s3_url = f"https://{bucket}.s3.{aws_region}.amazonaws.com/{quote(bg_image)}"
         print("[DEBUG] S3 URL:", s3_url)
 
     # KTX 역 목록 (KTX_STATION_CODES의 키)

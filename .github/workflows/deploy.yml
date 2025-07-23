@@ -62,7 +62,7 @@ jobs:
 
       - name: Update Kubeconfig
         run: |
-          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME --verbose
+          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME 
 
       - name: Debug AWS Identity
         run: |

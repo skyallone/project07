@@ -45,7 +45,7 @@ jobs:
           echo "RDS_USERNAME=$(terraform output -raw rds_username)" >> $GITHUB_ENV
           echo "RDS_PASSWORD=$(terraform output -raw rds_password)" >> $GITHUB_ENV
           echo "RDS_DB_NAME=$(terraform output -raw rds_db_name)" >> $GITHUB_ENV
-          echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
+          echo "S3_BUCKET=$(terraform output -raw s3_bucket_name)" >> $GITHUB_ENV
           echo "DYNAMODB_TABLE=$(terraform output -raw dynamodb_table)" >> $GITHUB_ENV
           echo "ECR_REGISTRY=$(terraform output -raw ecr_registry)" >> $GITHUB_ENV
           echo "ECR_REPOSITORY=$(terraform output -raw ecr_repository)" >> $GITHUB_ENV
@@ -55,7 +55,7 @@ jobs:
       - name: Compose MYSQL_URI
         id: compose_uri
         run: |
-          echo "MYSQL_URI=mysql+pymysql://${RDS_USERNAME}:${RDS_PASSWORD}@${RDS_ENDPOINT}:3306/${RDS_DB_NAME}" >> $GITHUB_ENV
+          echo "MYSQL_URI=mysql+pymysql://${RDS_USERNAME}:${RDS_PASSWORD}@${RDS_ENDPOINT}/${RDS_DB_NAME}" >> $GITHUB_ENV
 
       - name: Set Terraform Outputs as GitHub Secrets
         env:

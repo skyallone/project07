@@ -1,4 +1,4 @@
-# deployment.yaml - Karpenter 호환 설정
+# deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,48 +15,13 @@ spec:
       labels:
         app: flask-app
     spec:
-      # 노드 선택기 - Karpenter가 프로비저닝한 노드 선택 (선택사항)
-      # nodeSelector:
-      #   karpenter.sh/nodepool: default
-      
-      # 톨러레이션 - 테인트된 노드에서도 실행 가능 (필요한 경우만)
-      # tolerations:
-      #   - key: example.com/special-taint
-      #     operator: Equal
-      #     value: "true"
-      #     effect: NoSchedule
-      
-      # 어피니티 - 노드 분산 배치
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                        - flask-app
-                topologyKey: kubernetes.io/hostname
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: karpenter.sh/capacity-type
-                    operator: In
-                    values:
-                      - spot
-                      - on-demand
-      
       containers:
         - name: flask-app
           image: 574205320701.dkr.ecr.ap-northeast-2.amazonaws.com/project07-ecr:latest
           ports:
             - containerPort: 5000
           
-          # 리소스 요청/제한 - Karpenter가 적절한 노드 크기 결정
+          # 리소스 요청/제한
           resources:
             requests:
               cpu: 200m
