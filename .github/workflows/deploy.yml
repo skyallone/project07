@@ -61,16 +61,18 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Update Kubeconfig
-        run: |
-          aws eks update-kubeconfig --region ap-northeast-2 --name projectflask 
-
       - name: Debug AWS Identity
         run: |
           echo "=== Current AWS Identity ==="
           aws sts get-caller-identity
           echo "=== EKS Role ARN from secrets ==="
           echo "EKS_ROLE_ARN: ${{ env.EKS_ROLE_ARN }}"
+    
+
+      - name: Update Kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ap-northeast-2 --name projectflask 
+
 
       - name: Fix aws-auth ConfigMap
         run: |
