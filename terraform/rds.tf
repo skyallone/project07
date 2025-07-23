@@ -34,6 +34,16 @@ resource "aws_security_group_rule" "rds_from_eks_node" {
   description              = "Allow EKS nodes to access RDS on port 3306"
 }
 
+resource "aws_security_group_rule" "rds_from_eks_cluster_sg" {
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+  description              = "Allow EKS cluster SG to access RDS on port 3306"
+}
+
 resource "aws_db_instance" "mysql" {
   allocated_storage    = 20
   engine               = "mysql"
