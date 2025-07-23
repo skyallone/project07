@@ -143,3 +143,24 @@ resource "aws_iam_policy" "terraform_backend" {
 # }
 
 # <YOUR_AWS_ACCOUNT_ID>와 <YOUR_TERRAFORM_ROLE>은 직접 입력/수정해야 합니다. 
+
+resource "aws_iam_policy" "eks_describe_cluster" {
+  name = "AllowEKSDescribeCluster"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "eks:DescribeCluster"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_describe_cluster_custom" {
+  role       = aws_iam_role.eks_cluster.name
+  policy_arn = aws_iam_policy.eks_describe_cluster.arn
+} 
