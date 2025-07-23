@@ -75,11 +75,6 @@ data "aws_iam_policy_document" "eks_node_assume_role_policy" {
   }
 }
 
-resource "aws_iam_role_policy_attachment" "eks_node_AmazonEKSWorkerNodePolicy" {
-  role       = aws_iam_role.eks_node.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-}
-
 resource "aws_iam_role_policy_attachment" "eks_node_AmazonEKS_CNI_Policy" {
   role       = aws_iam_role.eks_node.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
