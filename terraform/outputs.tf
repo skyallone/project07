@@ -10,10 +10,6 @@ output "eks_node_group_name" {
   value = aws_eks_node_group.main.node_group_name
 }
 
-output "alb_dns_name" {
-  value = aws_lb.main.dns_name
-}
-
 output "s3_bucket_name" {
   value = aws_s3_bucket.project07.bucket
 }
@@ -61,4 +57,21 @@ output "nat_gateway_ids" {
 output "dynamodb_table" {
   description = "DynamoDB table name"
   value       = aws_dynamodb_table.project.name
+}
+
+output "rds_endpoint" {
+  value = aws_db_instance.mysql.endpoint
+}
+
+output "rds_username" {
+  value = aws_db_instance.mysql.username
+}
+
+output "rds_password" {
+  value     = aws_db_instance.mysql.password
+  sensitive = true
+}
+
+output "rds_db_name" {
+  value = "project"
 } 

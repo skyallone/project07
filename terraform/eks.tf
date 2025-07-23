@@ -16,6 +16,22 @@ variable "node_instance_type" {
   default     = "t3.medium"
 }
 
+resource "aws_security_group" "eks_node" {
+  name        = "project-eks-node-sg"
+  description = "EKS worker node security group"
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    Name = "project-eks-node-sg"
+  }
+}
+
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
   role_arn = aws_iam_role.eks_cluster.arn

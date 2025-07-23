@@ -24,6 +24,36 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Cleanup ALB Resources
+        run: |
+          echo "Cleaning up ALB resources before terraform destroy..."
+          
+          # EKS 클러스터에 접근
+          aws eks update-kubeconfig --region $AWS_REGION --name projectflask
+          
+          # Ingress 삭제 (ALB 삭제)
+          kubectl delete ingress project07-ingress --ignore-not-found=true
+          
+          # Service 삭제 (LoadBalancer 타입)
+          kubectl delete service flask-service --ignore-not-found=true
+          
+          # Deployment 삭제
+          kubectl delete deployment flask-app --ignore-not-found=true
+          
+          # Secret 삭제
+          kubectl delete secret flask-secrets --ignore-not-found=true
+          
+          echo "ALB cleanup completed"
+          
+          # ALB 삭제 대기
+          echo "Waiting for ALB to be fully deleted..."
+          sleep 30
+
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init
