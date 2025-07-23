@@ -15,8 +15,4 @@ resource "aws_ecr_repository" "project07" {
   }
 }
 
-# S3 버킷 이름을 output으로 내보내기
-output "s3_bucket_name" {
-  description = "S3 bucket name for the project"
-  value       = aws_s3_bucket.project07.bucket
-} 
+ 
