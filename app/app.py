@@ -25,6 +25,14 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# 앱 시작 시 테이블 자동 생성 (EKS, Docker, Gunicorn 등 모든 환경에서 동작)
+with app.app_context():
+    try:
+        db.create_all()
+        print("SQLAlchemy 테이블 생성 시도")
+    except Exception as e:
+        print(f"SQLAlchemy 테이블 생성 오류: {e}")
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
