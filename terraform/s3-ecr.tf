@@ -1,8 +1,10 @@
 resource "aws_s3_bucket" "project07" {
   bucket = "project07-bucket-${random_id.s3_id.hex}"
   force_destroy = true
+}
 
-  # 퍼블릭 엑세스 차단 해제
+resource "aws_s3_bucket_acl" "project07" {
+  bucket = aws_s3_bucket.project07.id
   acl    = "public-read"
 }
 
