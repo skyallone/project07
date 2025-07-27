@@ -7,6 +7,10 @@ resource "aws_dynamodb_table" "project" {
     name = "user_id"
     type = "S"
   }
+  attribute {
+      name = "timestamp"
+      type = "N"
+  }
 
   tags = {
     Environment = "production"
