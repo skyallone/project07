@@ -3,7 +3,16 @@ resource "aws_s3_bucket" "project07" {
   force_destroy = true
 }
 
+resource "aws_s3_bucket_ownership_controls" "project07" {
+  bucket = aws_s3_bucket.project07.id
+
+  rule {
+    object_ownership = "ObjectWriter"
+  }
+}
+
 resource "aws_s3_bucket_acl" "project07" {
+  depends_on = [aws_s3_bucket_ownership_controls.project07]
   bucket = aws_s3_bucket.project07.id
   acl    = "public-read"
 }
