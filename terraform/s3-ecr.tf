@@ -27,6 +27,7 @@ resource "aws_s3_bucket_public_access_block" "project07" {
 }
 
 resource "aws_s3_bucket_policy" "project07" {
+  depends_on = [aws_s3_bucket_public_access_block.project07]
   bucket = aws_s3_bucket.project07.id
   policy = jsonencode({
     Version = "2012-10-17"
