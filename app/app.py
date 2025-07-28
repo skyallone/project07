@@ -33,6 +33,39 @@ with app.app_context():
     except Exception as e:
         print(f"SQLAlchemy 테이블 생성 오류: {e}")
 
+# 전역 변수 초기화 (앱 시작 시 한 번만 실행)
+print("전역 변수 초기화 시작...")
+
+# KTX 역 코드 매핑 (실제 TAGO API 역 코드로 업데이트)
+KTX_STATION_CODES = {
+    '서울': 'NAT010000', '용산': 'NAT010032', '노량진': 'NAT010058', '영등포': 'NAT010091',
+    '신도림': 'NAT010106', '청량리': 'NAT130126', '왕십리': 'NAT130104', '옥수': 'NAT130070',
+    '서빙고': 'NAT130036', '광운대': 'NAT130182', '상봉': 'NAT020040', '수서': 'NATH30000',
+    '부산': 'NAT014445', '구포': 'NAT014281', '사상': 'NAT014331', '화명': 'NAT014244',
+    '부전': 'NAT750046', '동래': 'NAT750106', '센텀': 'NAT750161', '신해운대': 'NAT750189',
+    '송정': 'NAT750254', '기장': 'NAT750329', '좌천': 'NAT750412',
+    '대전': 'NAT011668', '서대전': 'NAT030057', '신탄진': 'NAT011524', '흑석리': 'NAT030173',
+    '동대구': 'NAT013271', '대구': 'NAT013239', '서대구': 'NAT013189',
+    '광주송정': 'NAT031857', '광주': 'NAT883012', '서광주': 'NAT882936', '효천': 'NAT882904',
+    '울산(통도사)': 'NATH13717', '북울산': 'NAT750781', '남창': 'NAT750560', '덕하': 'NAT750653',
+    '태화강': 'NAT750726', '효문': 'NAT750760'
+}
+
+# 터미널 코드 로드 (한 번만 로드)
+try:
+    with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:
+        TERMINALS = json.load(f)
+    print(f"터미널 코드 로드 완료: {len(TERMINALS)}개")
+except Exception as e:
+    print(f"터미널 코드 로드 오류: {e}")
+    TERMINALS = []
+
+# API 키 설정
+API_KEY = os.environ.get('API_KEY')  # URL-encoded 인증키 사용
+TAGO_API_KEY = os.environ.get('TAGO_API_KEY')
+
+print("전역 변수 초기화 완료")
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -78,9 +111,55 @@ def get_s3_image_url(filename):
     aws_region = os.environ.get('AWS_REGION', 'ap-northeast-2')
     return f"https://{s3_bucket}.s3.{aws_region}.amazonaws.com/{urllib.parse.quote(filename)}"
 
+# 전역 변수로 S3 배경 이미지 캐시
+S3_BG_IMAGES_CACHE = None
+S3_BG_IMAGES_LAST_UPDATE = 0
+S3_CACHE_DURATION = 3600  # 1시간 캐시
+
+def get_s3_background_images():
+    """S3 배경 이미지 목록을 캐시하여 반환"""
+    global S3_BG_IMAGES_CACHE, S3_BG_IMAGES_LAST_UPDATE
+    
+    current_time = time.time()
+    
+    # 캐시가 유효한 경우 캐시된 데이터 반환
+    if S3_BG_IMAGES_CACHE and (current_time - S3_BG_IMAGES_LAST_UPDATE) < S3_CACHE_DURATION:
+        return S3_BG_IMAGES_CACHE
+    
+    try:
+        s3 = boto3.client(
+            's3',
+            region_name=os.environ.get('AWS_REGION', 'ap-northeast-2'),
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
+        )
+        bucket = os.environ.get('S3_BUCKET', 'project-trip-pic')
+        prefix = 'backgrounds/'
+        
+        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        bg_images = []
+        for obj in response.get('Contents', []):
+            key = obj['Key']
+            if key != prefix and not key.endswith('/'):
+                bg_images.append(key)
+        
+        # 캐시 업데이트
+        S3_BG_IMAGES_CACHE = bg_images
+        S3_BG_IMAGES_LAST_UPDATE = current_time
+        
+        return bg_images
+    except Exception as e:
+        print(f"S3 배경 이미지 로드 오류: {e}")
+        return []
+
 @app.context_processor
 def inject_global_vars():
-    return dict(get_s3_image_url=get_s3_image_url)
+    return dict(
+        get_s3_image_url=get_s3_image_url,
+        current_year=datetime.now().year,
+        app_name='AI 여행계획',
+        app_version='1.0.0'
+    )
 
 # 회원가입 라우트
 @app.route('/register', methods=['GET', 'POST'])
@@ -222,7 +301,7 @@ def search_transportation():
             }
             
             print(f"[DEBUG] TAGO API 요청: {base_url} params={params}")
-            resp = requests.get(base_url, params=params, timeout=10)
+            resp = safe_api_call(base_url, params, timeout=10)
             print(f"[DEBUG] TAGO API 응답 상태: {resp.status_code}")
             
             if resp.status_code != 200:
@@ -289,13 +368,10 @@ def search_transportation():
     elif transport_type == 'bus':
         # 버스 조회 로직 (API_KEY 사용)
         try:
-            # all_terminal_codes.json에서 터미널 ID 찾기
-            with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:
-                terminal_data = json.load(f)
-            
+            # 전역 변수 TERMINALS 사용
             # 터미널명으로 터미널 ID 찾기
-            dep_terminal = next((t for t in terminal_data if t['터미널명'] == departure), None)
-            arr_terminal = next((t for t in terminal_data if t['터미널명'] == destination), None)
+            dep_terminal = next((t for t in TERMINALS if t['터미널명'] == departure), None)
+            arr_terminal = next((t for t in TERMINALS if t['터미널명'] == destination), None)
             
             if not dep_terminal or not arr_terminal:
                 return jsonify({'error': f'지원하지 않는 터미널입니다. 출발지: {departure}, 도착지: {destination}'})
@@ -319,7 +395,7 @@ def search_transportation():
             print(f"[DEBUG] 버스 API 요청: {base_url}")
             print(f"[DEBUG] 버스 API 파라미터: {params}")
             print(f"[DEBUG] API_KEY: {API_KEY[:20]}...")
-            resp = requests.get(base_url, params=params, timeout=10)
+            resp = safe_api_call(base_url, params, timeout=10)
             print(f"[DEBUG] 버스 API 응답 상태: {resp.status_code}")
             print(f"[DEBUG] 버스 API 응답 헤더: {dict(resp.headers)}")
             
@@ -550,41 +626,52 @@ def search_from_favorite():
         # 버스 검색
         buses = []
         try:
-            # all_terminal_codes.json에서 터미널 ID 찾기
-            with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:
-                terminal_data = json.load(f)
+            # 전역 변수 TERMINALS 사용
             # 터미널명으로 터미널 ID 찾기
-            dep_terminal = next((t for t in terminal_data if t['터미널명'] == departure), None)
-            arr_terminal = next((t for t in terminal_data if t['터미널명'] == destination), None)
-            if dep_terminal and arr_terminal:
-                dep_id = dep_terminal['터미널ID']
-                arr_id = arr_terminal['터미널ID']
-                base_url = 'http://apis.data.go.kr/1613000/ExpBusInfoService/getStrtpntAlocFndExpbusInfo'
-                params = {
-                    'serviceKey': API_KEY,
-                    'depTerminalId': dep_id,
-                    'arrTerminalId': arr_id,
-                    'depPlandTime': bus_date,
-                    'numOfRows': 100,
-                    'pageNo': 1,
-                    '_type': 'json'
-                }
-                resp = requests.get(base_url, params=params, timeout=10)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    items = data.get('response', {}).get('body', {}).get('items', {}).get('item', [])
+            dep_terminal = next((t for t in TERMINALS if t['터미널명'].strip() == dep), None)
+            arr_terminal = next((t for t in TERMINALS if t['터미널명'].strip() == arr), None)
+            if not dep_terminal or not arr_terminal:
+                print(f"[ERROR] 터미널명 매칭 실패: dep={departure}, arr={destination}")
+                sample = get_sample_bus_data(date=datetime.strptime(bus_date, '%Y-%m-%d').strftime('%Y-%m-%d'), dep=departure, arr=destination)
+                answer = f"{sample['header']}\n(실제 시간표는 예매사이트에서 확인하세요)"
+                for bus in sample['buses']:
+                    answer += f"\n- {bus['departure_time']}~{bus['arrival_time']} {bus['company']} {bus['price']}"
+                return jsonify({'success': True, 'response': answer})
+            dep_id = dep_terminal['터미널ID']
+            arr_id = arr_terminal['터미널ID']
+            base_url = 'http://apis.data.go.kr/1613000/ExpBusInfoService/getStrtpntAlocFndExpbusInfo'
+            params = {
+                'serviceKey': API_KEY,
+                'depTerminalId': dep_id,
+                'arrTerminalId': arr_id,
+                'depPlandTime': bus_date,
+                'numOfRows': 100,
+                'pageNo': 1,
+                '_type': 'json'
+            }
+            resp = requests.get(base_url, params=params, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get('response', {}).get('body', {}).get('items', {}).get('item', [])
+                
+                if items:
+                    if isinstance(items, dict):
+                        items = [items]
                     
-                    if items:
-                        if isinstance(items, dict):
-                            items = [items]
-                        
-                        for item in items:
-                            dep_time = item.get('depPlandTime', '')
-                            arr_time = item.get('arrPlandTime', '')
-                            if dep_time and arr_time:
-                                dep_time = f"{dep_time[8:10]}:{dep_time[10:12]}" if len(dep_time) >= 12 else dep_time
-                                arr_time = f"{arr_time[8:10]}:{arr_time[10:12]}" if len(arr_time) >= 12 else arr_time
-                                buses.append(f"{dep_time}~{arr_time} {item.get('companyNm', '')} 버스")
+                    for item in items:
+                        dep_time = item.get('depPlandTime', '')
+                        arr_time = item.get('arrPlandTime', '')
+                        if dep_time and arr_time:
+                            dep_time = f"{dep_time[8:10]}:{dep_time[10:12]}" if len(dep_time) >= 12 else dep_time
+                            arr_time = f"{arr_time[8:10]}:{arr_time[10:12]}" if len(arr_time) >= 12 else arr_time
+                            buses.append(f"{dep_time}~{arr_time} {item.get('companyNm', '')} 버스")
+            else:
+                print(f"[DEBUG] 버스 API 오류 응답: {resp.text}")
+                sample = get_sample_bus_data(date=datetime.strptime(bus_date, '%Y-%m-%d').strftime('%Y-%m-%d'), dep=departure, arr=destination)
+                answer = f"{sample['header']}\n(실제 시간표는 예매사이트에서 확인하세요)"
+                for bus in sample['buses']:
+                    answer += f"\n- {bus['departure_time']}~{bus['arrival_time']} {bus['company']} {bus['price']}"
+                return jsonify({'success': True, 'response': answer})
         except Exception as e:
             print(f"즐겨찾기 버스 검색 오류: {e}")
         
@@ -680,23 +767,7 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel('gemini-2.0-flash')
 
-# TAGO API 키 설정 (국토교통부 열차정보 API)
-TAGO_API_KEY = os.environ.get('TAGO_API_KEY')
-
-# KTX 역 코드 매핑 (실제 TAGO API 역 코드로 업데이트)
-KTX_STATION_CODES = {
-    '서울': 'NAT010000', '용산': 'NAT010032', '노량진': 'NAT010058', '영등포': 'NAT010091',
-    '신도림': 'NAT010106', '청량리': 'NAT130126', '왕십리': 'NAT130104', '옥수': 'NAT130070',
-    '서빙고': 'NAT130036', '광운대': 'NAT130182', '상봉': 'NAT020040', '수서': 'NATH30000',
-    '부산': 'NAT014445', '구포': 'NAT014281', '사상': 'NAT014331', '화명': 'NAT014244',
-    '부전': 'NAT750046', '동래': 'NAT750106', '센텀': 'NAT750161', '신해운대': 'NAT750189',
-    '송정': 'NAT750254', '기장': 'NAT750329', '좌천': 'NAT750412',
-    '대전': 'NAT011668', '서대전': 'NAT030057', '신탄진': 'NAT011524', '흑석리': 'NAT030173',
-    '동대구': 'NAT013271', '대구': 'NAT013239', '서대구': 'NAT013189',
-    '광주송정': 'NAT031857', '광주': 'NAT883012', '서광주': 'NAT882936', '효천': 'NAT882904',
-    '울산(통도사)': 'NATH13717', '북울산': 'NAT750781', '남창': 'NAT750560', '덕하': 'NAT750653',
-    '태화강': 'NAT750726', '효문': 'NAT750760'
-}
+# TAGO API 키는 이미 전역 변수로 설정됨
 
 def generate_gemini_response(user, message):
     """Gemini 2.5 Flash를 사용한 AI 응답 생성"""
@@ -824,10 +895,9 @@ def chatbot_api():
             
             # 버스 검색
             try:
-                with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:
-                    terminal_data = json.load(f)
-                dep_terminal = next((t for t in terminal_data if t['터미널명'].strip() == dep), None)
-                arr_terminal = next((t for t in terminal_data if t['터미널명'].strip() == arr), None)
+                # 전역 변수 TERMINALS 사용
+                dep_terminal = next((t for t in TERMINALS if t['터미널명'].strip() == dep), None)
+                arr_terminal = next((t for t in TERMINALS if t['터미널명'].strip() == arr), None)
                 if not dep_terminal or not arr_terminal:
                     print(f"[ERROR] 터미널명 매칭 실패: dep={dep}, arr={arr}")
                     sample = get_sample_bus_data(date=datetime.strptime(date, '%Y%m%d').strftime('%Y-%m-%d'), dep=dep, arr=arr)
@@ -1051,19 +1121,17 @@ def internal_error(error):
     return render_template('500.html'), 500
 
 # 컨텍스트 프로세서 - 템플릿에서 사용할 전역 변수
-@app.context_processor
-def inject_global_vars():
-    return {
-        'current_year': datetime.now().year,
-        'app_name': 'AI 여행계획',
-        'app_version': '1.0.0'
-    }
-
-API_KEY = os.environ.get('API_KEY')  # URL-encoded 인증키 사용
+# @app.context_processor
+# def inject_global_vars():
+#     return {
+#         'current_year': datetime.now().year,
+#         'app_name': 'AI 여행계획',
+#         'app_version': '1.0.0'
+#     }
 
 # 터미널 코드 로드
-with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:
-    TERMINALS = json.load(f)
+# with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:
+#     TERMINALS = json.load(f)
 
 @app.route('/api/stations')
 def get_stations():
@@ -1217,13 +1285,10 @@ def test_tago_api():
         # 버스 API 테스트 (서울-부산)
         bus_test_result = None
         try:
-            # all_terminal_codes.json에서 터미널 ID 찾기
-            with open(os.path.join(os.path.dirname(__file__), 'all_terminal_codes.json'), encoding='utf-8') as f:
-                terminal_data = json.load(f)
-            
+            # 전역 변수 TERMINALS 사용
             # 서울경부와 부산 터미널 찾기
-            dep_terminal = next((t for t in terminal_data if '서울' in t['터미널명']), None)
-            arr_terminal = next((t for t in terminal_data if '부산' in t['터미널명']), None)
+            dep_terminal = next((t for t in TERMINALS if '서울' in t['터미널명']), None)
+            arr_terminal = next((t for t in TERMINALS if '부산' in t['터미널명']), None)
             
             if dep_terminal and arr_terminal:
                 dep_id = dep_terminal['터미널ID']
@@ -1274,23 +1339,9 @@ def test_tago_api():
 
 @app.route('/', endpoint='index')
 def index():
-    s3 = boto3.client(
-        's3',
-        region_name=os.environ.get('AWS_REGION', 'ap-northeast-2'),
-        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
-    )
-    bucket = os.environ.get('S3_BUCKET', 'project-trip-pic')
-    prefix = 'backgrounds/'
-    print("[DEBUG] S3_BUCKET:", bucket)
-    print("[DEBUG] AWS_REGION:", os.environ.get('AWS_REGION', 'ap-northeast-2'))
-    response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-    bg_images = []
-    for obj in response.get('Contents', []):
-        key = obj['Key']
-        if key != prefix and not key.endswith('/'):
-            bg_images.append(key)
-    print("[DEBUG] bg_images:", bg_images)
+    # 캐시된 S3 배경 이미지 사용
+    bg_images = get_s3_background_images()
+    
     bg_image = None
     if bg_images:
         import random
@@ -1298,26 +1349,14 @@ def index():
         print("[DEBUG] bg_image (random):", bg_image)
         from urllib.parse import quote
         aws_region = os.environ.get('AWS_REGION', 'ap-northeast-2')
+        bucket = os.environ.get('S3_BUCKET', 'project-trip-pic')
         s3_url = f"https://{bucket}.s3.{aws_region}.amazonaws.com/{quote(bg_image)}"
         print("[DEBUG] S3 URL:", s3_url)
 
-    # KTX 역 목록 (KTX_STATION_CODES의 키)
-    KTX_STATION_CODES = {
-        '서울': 'NAT010000', '용산': 'NAT010032', '노량진': 'NAT010058', '영등포': 'NAT010091',
-        '신도림': 'NAT010106', '청량리': 'NAT130126', '왕십리': 'NAT130104', '옥수': 'NAT130070',
-        '서빙고': 'NAT130036', '광운대': 'NAT130182', '상봉': 'NAT020040', '수서': 'NATH30000',
-        '부산': 'NAT014445', '구포': 'NAT014281', '사상': 'NAT014331', '화명': 'NAT014244',
-        '부전': 'NAT750046', '동래': 'NAT750106', '센텀': 'NAT750161', '신해운대': 'NAT750189',
-        '송정': 'NAT750254', '기장': 'NAT750329', '좌천': 'NAT750412',
-        '대전': 'NAT011668', '서대전': 'NAT030057', '신탄진': 'NAT011524', '흑석리': 'NAT030173',
-        '동대구': 'NAT013271', '대구': 'NAT013239', '서대구': 'NAT013189',
-        '광주송정': 'NAT031857', '광주': 'NAT883012', '서광주': 'NAT882936', '효천': 'NAT882904',
-        '울산(통도사)': 'NATH13717', '북울산': 'NAT750781', '남창': 'NAT750560', '덕하': 'NAT750653',
-        '태화강': 'NAT750726', '효문': 'NAT750760'
-    }
+    # KTX 역 목록 (전역 변수 사용)
     ktx_stations = list(KTX_STATION_CODES.keys())
 
-    # 버스 터미널 목록 (TERMINALS에서 터미널명만 추출)
+    # 버스 터미널 목록 (전역 변수 사용)
     bus_terminals = [t['터미널명'] for t in TERMINALS if '터미널명' in t]
 
     return render_template(
@@ -1329,35 +1368,35 @@ def index():
     )
 
 if __name__ == '__main__':
-    with app.app_context():
-        # 기존 SQLAlchemy 모델 및 관련 코드들은 삭제 또는 주석 처리
-        # 데이터베이스 초기화는 데이터베이스 연결 방식에 따라 다릅니다.
-        # 여기서는 예시로 데이터베이스 테이블 생성을 시도합니다.
-        # 실제 MongoDB는 컬렉션 생성 시 데이터베이스 존재 여부를 확인하지 않으므로 오류 발생 시 무시
-        try:
-            db.create_all() # SQLAlchemy 테이블 생성
-            print("SQLAlchemy 테이블 생성 시도")
-        except Exception as e:
-            print(f"SQLAlchemy 테이블 생성 오류 (이미 존재할 수 있음): {e}")
+    # 앱 시작 시 한 번만 실행되는 초기화 코드
+    print("Flask 앱 시작...")
+    
+    # 데이터베이스 테이블이 이미 생성되었으므로 중복 실행 방지
+    # with app.app_context():
+    #     try:
+    #         db.create_all()
+    #         print("SQLAlchemy 테이블 생성 시도")
+    #     except Exception as e:
+    #         print(f"SQLAlchemy 테이블 생성 오류 (이미 존재할 수 있음): {e}")
 
-        try:
-            dynamodb.create_table(
-                TableName=Config.DYNAMODB_TABLE,
-                KeySchema=[
-                    {'AttributeName': 'user_id', 'KeyType': 'HASH'},
-                    {'AttributeName': 'timestamp', 'KeyType': 'RANGE'}
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'user_id', 'AttributeType': 'S'},
-                    {'AttributeName': 'timestamp', 'AttributeType': 'N'}
-                ],
-                ProvisionedThroughput={
-                    'ReadCapacityUnits': 5,
-                    'WriteCapacityUnits': 5
-                }
-            )
-            print("DynamoDB 테이블 생성 시도")
-        except Exception as e:
-            print(f"DynamoDB 테이블 생성 오류 (이미 존재할 수 있음): {e}")
+    #     try:
+    #         dynamodb.create_table(
+    #             TableName=Config.DYNAMODB_TABLE,
+    #             KeySchema=[
+    #                 {'AttributeName': 'user_id', 'KeyType': 'HASH'},
+    #                 {'AttributeName': 'timestamp', 'KeyType': 'RANGE'}
+    #             ],
+    #             AttributeDefinitions=[
+    #                 {'AttributeName': 'user_id', 'AttributeType': 'S'},
+    #                 {'AttributeName': 'timestamp', 'AttributeType': 'N'}
+    #             ],
+    #             ProvisionedThroughput={
+    #                 'ReadCapacityUnits': 5,
+    #                 'WriteCapacityUnits': 5
+    #             }
+    #         )
+    #         print("DynamoDB 테이블 생성 시도")
+    #     except Exception as e:
+    #         print(f"DynamoDB 테이블 생성 오류 (이미 존재할 수 있음): {e}")
 
     app.run(debug=True, host='0.0.0.0', port=5000)
